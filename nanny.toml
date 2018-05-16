@@ -1,0 +1,22 @@
+# You can customise Nanny's name to be able to tell more of them apart.
+name="Nanny"
+addr="localhost:8080"
+
+# Individual notifier settings.
+[stderr]
+enabled=true
+
+[email]
+enabled=true
+from="nanny@myserver.com"
+to=["someone@somewhere.com"]
+subject="Nanny alert for %s"
+body="%s"
+smtp_server="my.smtp.server"
+smtp_port=587
+smtp_user="someone@somewhere.com"
+smtp_password=""
+
+[sentry]
+enabled=true
+dsn=""

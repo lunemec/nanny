@@ -1,0 +1,6 @@
+godobin*
+cmd/demo/demo
+cmd/filter/filter
+*.exe
+.vscode
+vendor/
