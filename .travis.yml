@@ -1,3 +1,4 @@
+go_import_path: github.com/lunemec/nanny
 language: go
 script: make test && make build
 go:
