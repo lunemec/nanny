@@ -212,7 +212,7 @@ func initConfig() {
 		}
 		log.Info("Using config file", "path", viper.ConfigFileUsed())
 	} else {
-		log.Info("Config not found, using default stderr notifier.")
+		log.Warn("Config not found, using default stderr notifier.")
 		config.Stderr.Enabled = true
 	}
 }
