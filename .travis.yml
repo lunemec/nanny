@@ -1,4 +1,4 @@
 language: go
-script: make test
+script: make test && make build
 go:
   - "1.x"

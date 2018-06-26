@@ -1,5 +1,5 @@
 # Nanny
-[![Go Report Card](https://goreportcard.com/badge/github.com/lunemec/nanny)](https://goreportcard.com/report/github.com/lunemec/nanny)
+[![Build Status](https://travis-ci.org/lunemec/nanny.svg?branch=master)](https://travis-ci.org/lunemec/nanny) [![Go Report Card](https://goreportcard.com/badge/github.com/lunemec/nanny)](https://goreportcard.com/report/github.com/lunemec/nanny)
 
 Nanny is a monitoring tool that monitors the **absence of action**.
 
@@ -13,7 +13,7 @@ Nanny can notify you via these channels (for now):
 ## Example
 Run API server:
 ```bash
- $ LOGXI=* ./nanny
+$ LOGXI=* ./nanny
 14:21:07.969059 INF ~ Using config file
    path: nanny.toml
 14:21:07.977322 INF ~ Nanny listening addr: localhost:8080
@@ -50,6 +50,9 @@ timers.
 curl http://localhost:8080/api/v1/signal --data '{ "name": "<- this must be unique", "notifier": "stderr", "next_signal": 5 }'
 ```
 
+## Logging
+By default, nanny logs only errors. To enable more verbose logging, use `LOGXI=*` environment variable.
+
 ## Adding custom data (tags) to notifications
 You can add extra meta-data to the API calls, which will be passed to all the notifiers. Metadata must conform to type `map[string]string`.
 
@@ -58,6 +61,20 @@ curl http://localhost:8080/api/v1/signal --data '{ "name": "<- this must be uniq
 ```
 
 These metadata will be displayed in the messages for stderr and email, and in tags for sentry.
+
+## Contributing
+Contributions welcome! Just be sure you run tests and lints.
+
+```bash
+$ make
+  Build                          
+make build                            Build production binary.                           
+  Dev                            
+make run                              Run Nanny in dev mode, all logging and race detector ON. 
+make test                             Run tests.                                         
+make vet                              Run go vet.                                        
+make lint                             Run gometalinter (you have to install it). 
+```
 
 ## FAQ
 > Why write such tool?
