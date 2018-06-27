@@ -9,3 +9,5 @@ import (
 func TestAPISignal(t *testing.T) {
 
 }
+
+func TestPersistence(t *testing.T) {}

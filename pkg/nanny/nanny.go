@@ -7,6 +7,7 @@ import (
 
 	"nanny/pkg/notifier"
 
+	"github.com/cornelk/hashmap"
 	"github.com/pkg/errors"
 )
 
@@ -17,7 +18,7 @@ type Nanny struct {
 	// Function that will be called when notifier.Notify returns error.
 	// If not specified, uses defaultErrorFunc.
 	ErrorFunc ErrorFunc
-	timers    timerMap // Map of program names (Signal.Name) to their timers.
+	timers    hashmap.HashMap // Map of program names (Signal.Name) to their timers.
 
 	lock sync.Mutex
 }
@@ -31,14 +32,14 @@ type Signal struct {
 	Notifier   notifier.Notifier // What notifier to use.
 	NextSignal time.Duration     // Notify after reaching this timeout.
 	Meta       map[string]string
+
+	// Optional callback function that will be called when notifier is called.
+	CallbackFunc func(*Signal)
 }
 
 // validSignal represents signal that is actually valid. It is created by calling
 // nanny.validate(Signal) internally.
 type validSignal Signal
-
-// timerMap is just a shortcut to avoid having to copy the same type everywhere.
-type timerMap map[string]*time.Timer
 
 // ErrorFunc is a function that will be called by Nanny if there was any error
 // during notifier.Notify call.
@@ -83,7 +84,9 @@ func (n *Nanny) handle(s validSignal) error {
 
 	if timer != nil {
 		// Timer exists, reset the timer to the new signal value.
+		n.lock.Lock()
 		timer.Reset(s.NextSignal)
+		n.lock.Unlock()
 	} else {
 		// No timer is registered for this program, create it.
 		newTimer := time.AfterFunc(s.NextSignal, func() {
@@ -96,6 +99,12 @@ func (n *Nanny) handle(s validSignal) error {
 				} else {
 					n.ErrorFunc(err)
 				}
+			}
+
+			// Call callback if set.
+			if s.CallbackFunc != nil {
+				signal := Signal(s)
+				s.CallbackFunc(&signal)
 			}
 		})
 		n.SetTimer(s.Name, newTimer)
@@ -121,21 +130,14 @@ func (n *Nanny) msg(s validSignal) notifier.Message {
 // GetTimer returns time.Timer when given program name is already registered or
 // nil.
 func (n *Nanny) GetTimer(name string) *time.Timer {
-	n.lock.Lock()
-	timer, ok := n.timers[name]
-	n.lock.Unlock()
+	value, ok := n.timers.GetStringKey(name)
 	if !ok {
 		return nil
 	}
-	return timer
+	return value.(*time.Timer)
 }
 
 // SetTimer sets new timer for given program name.
 func (n *Nanny) SetTimer(name string, timer *time.Timer) {
-	n.lock.Lock()
-	if n.timers == nil {
-		n.timers = make(timerMap)
-	}
-	n.timers[name] = timer
-	n.lock.Unlock()
+	n.timers.Set(name, timer)
 }

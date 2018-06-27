@@ -1,5 +1,10 @@
 go_import_path: nanny
 language: go
-script: make test && make build
 go:
   - "1.x"
+
+script: 
+  - go test -race -coverprofile=coverage.txt -covermode=atomic
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash)

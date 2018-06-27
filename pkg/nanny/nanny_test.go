@@ -121,9 +121,15 @@ func TestEmptyNanny(t *testing.T) {
 }
 
 func TestNannyCallsErrorFunc(t *testing.T) {
-	var capturedErr error
+	var (
+		capturedErr error
+		// We have to lock access to capturedErr.
+		lock sync.Mutex
+	)
 	errFunc := func(err error) {
+		lock.Lock()
 		capturedErr = err
+		lock.Unlock()
 	}
 	n := nanny.Nanny{Name: "test nanny", ErrorFunc: errFunc}
 	dummy := &DummyNotifierWithError{}
@@ -139,9 +145,11 @@ func TestNannyCallsErrorFunc(t *testing.T) {
 	}
 
 	time.Sleep(time.Duration(1)*time.Second + time.Duration(100)*time.Millisecond)
+	lock.Lock()
 	if capturedErr == nil {
 		t.Errorf("Nanny did not call ErrorFunc when notify.Notify returned error")
 	}
+	lock.Unlock()
 }
 
 func TestNextSignalZero(t *testing.T) {
@@ -194,4 +202,37 @@ func TestConcurrent(t *testing.T) {
 	}
 
 	wg.Wait()
+}
+
+func TestMultipleTimerResets(t *testing.T) {
+	n := nanny.Nanny{Name: "test nanny"}
+	dummy := &DummyNotifier{}
+	signal := nanny.Signal{
+		Name:       "test program",
+		Notifier:   dummy,
+		NextSignal: time.Duration(1) * time.Second,
+	}
+
+	runHandle := func() {
+		err := n.Handle(signal)
+		if err != nil {
+			t.Errorf("n.Signal should not return error, got: %v\n", err)
+		}
+	}
+	// This would cause data race on timer.Reset.
+	for i := 0; i < 100; i++ {
+		go runHandle()
+	}
+
+	// Before the `NextSignal` duration, nothing should happen.
+	dummyMsg := dummy.NotifyMsg()
+	if dummyMsg.Program != "" {
+		t.Errorf("dummy msg should be empty before NextSignal time expires: %v\n", dummyMsg)
+	}
+	// After 1s, DummyNotifier should return error.
+	time.Sleep(time.Duration(1)*time.Second + time.Duration(100)*time.Millisecond)
+	dummyMsg = dummy.NotifyMsg()
+	if dummyMsg.Program == "" {
+		t.Errorf("dummy msg should not be empty after NextSignal time expired: %v\n", dummyMsg)
+	}
 }

@@ -9,6 +9,7 @@ import (
 
 	"nanny/pkg/nanny"
 	"nanny/pkg/notifier"
+	"nanny/pkg/storage"
 
 	"github.com/gorilla/mux"
 	log "github.com/mgutz/logxi"
@@ -17,8 +18,9 @@ import (
 
 // Server is Nanny API Server.
 type Server struct {
-	Name      string
-	Notifiers notifiers
+	Name      string          // Name of this Nanny.
+	Notifiers notifiers       // Enabled notifiers.
+	Storage   storage.Storage // What to use as persistence system.
 
 	Server *http.Server
 
@@ -55,7 +57,7 @@ func (e *httpError) Error() string {
 }
 
 type handler func(http.ResponseWriter, *http.Request) error
-type handlerWithDeps func(*nanny.Nanny, notifiers, http.ResponseWriter, *http.Request) error
+type handlerWithDeps func(*nanny.Nanny, notifiers, storage.Storage, http.ResponseWriter, *http.Request) error
 type notifiers map[string]notifier.Notifier
 
 // Handler returns http.Handler and error. This way we can customise
@@ -67,21 +69,74 @@ func (a *Server) Handler() (http.Handler, error) {
 	if a.Name != "" {
 		a.nanny.Name = a.Name
 	}
+
 	a.nanny.ErrorFunc = func(err error) {
 		log.Error("Notify error", "err", err)
 	}
 
-	return router(&a.nanny, a.Notifiers), nil
+	// Load persisted signals, if any.
+	loadStorage(&a.nanny, a.Notifiers, a.Storage)
+	return router(&a.nanny, a.Notifiers, a.Storage), nil
 }
 
-func router(nanny *nanny.Nanny, notifiers notifiers) *mux.Router {
+// loadStorage loads persisted signals. This function does not return error but logs
+// information directly (for better error messages).
+func loadStorage(n *nanny.Nanny, notifiers notifiers, store storage.Storage) {
+	signals, err := store.Load()
+	if err != nil {
+		msg := "Unable to load persisted signals. " +
+			"There may have been saved signals you will not be notified about! " +
+			"Please check services using Nanny manually."
+		log.Error(msg)
+		return
+	}
+
+	// Create nanny timers from persisted signals.
+	for _, signal := range signals {
+		notif, ok := notifiers[signal.Notifier]
+		if !ok {
+			msg := "Unable to find previously stored notifier. It may have been " +
+				"disabled. Please check this program manually."
+			log.Error(msg, "program", signal.Name)
+		}
+		s := nanny.Signal{
+			Name:       signal.Name,
+			Notifier:   notif,
+			NextSignal: signal.NextSignal.Sub(time.Now()),
+			Meta:       signal.Meta,
+
+			CallbackFunc: func(s *nanny.Signal) {
+				err := store.Remove(storage.Signal{Name: s.Name})
+				if err != nil {
+					log.Error("Error removing signal from storage.", "err", err, "signal", signal)
+				}
+			},
+		}
+
+		err = n.Handle(s)
+		if err != nil {
+			msg := "Unable to create signal handler from previous run," +
+				" please check this program manually."
+			log.Error(msg, "program", signal.Name, "err", err)
+			continue
+		}
+		log.Info("Loaded persisted signal successfull.",
+			"program", signal.Name,
+			"next_signal", s.NextSignal.String(),
+			"meta", s.Meta,
+			"notifier", signal.Notifier)
+	}
+}
+
+func router(nanny *nanny.Nanny, notifiers notifiers, store storage.Storage) *mux.Router {
 	router := mux.NewRouter()
 	// Clarify this is API.
 	apiRouter := router.PathPrefix("/api").Subrouter()
 	apiRouter.Handle("/version", panicWrap(headerWrap(errWrap(versionHandler))))
 	// In case of future API changes, nanny will support older versions of API.
 	v1Router := apiRouter.PathPrefix("/v1").Subrouter()
-	v1Router.Handle("/signal", panicWrap(headerWrap(errWrap(depWrap(nanny, notifiers, signalHandler))))).Methods("POST")
+	// TODO add listing of signals.
+	v1Router.Handle("/signal", panicWrap(headerWrap(errWrap(depWrap(nanny, notifiers, store, signalHandler))))).Methods("POST")
 
 	return router
 }
@@ -158,9 +213,9 @@ func errWrap(handler handler) http.Handler {
 }
 
 // depWrap adds notifier dependencies to handler.
-func depWrap(nanny *nanny.Nanny, notifiers notifiers, handler handlerWithDeps) handler {
+func depWrap(nanny *nanny.Nanny, notifiers notifiers, storage storage.Storage, handler handlerWithDeps) handler {
 	return func(w http.ResponseWriter, r *http.Request) error {
-		return handler(nanny, notifiers, w, r)
+		return handler(nanny, notifiers, storage, w, r)
 	}
 }
 
@@ -172,7 +227,7 @@ func versionHandler(w http.ResponseWriter, req *http.Request) error {
 }
 
 // signalHandler handles incomming register/ping signal from a source.
-func signalHandler(n *nanny.Nanny, notifiers notifiers, w http.ResponseWriter, req *http.Request) error {
+func signalHandler(n *nanny.Nanny, notifiers notifiers, store storage.Storage, w http.ResponseWriter, req *http.Request) error {
 	var signal Signal
 
 	dec := json.NewDecoder(req.Body)
@@ -200,7 +255,24 @@ func signalHandler(n *nanny.Nanny, notifiers notifiers, w http.ResponseWriter, r
 		NextSignal: time.Duration(signal.NextSignal) * time.Second,
 		Meta:       signal.Meta,
 	}
-	return n.Handle(s)
+	err = n.Handle(s)
+	if err != nil {
+		return errors.Wrap(err, "unable to handle signal")
+	}
+
+	err = store.Save(storage.Signal{
+		Name:       s.Name,
+		Notifier:   signal.Notifier,
+		NextSignal: time.Now().Add(s.NextSignal),
+		Meta:       s.Meta,
+	})
+
+	// This error should not be on the API but only logged. Notifications will still
+	// work.
+	if err != nil {
+		log.Error("Error saving signal to persistent storage", "err", err)
+	}
+	return nil
 }
 
 // Close closes any io.Closer and checks for error, which will be logged.

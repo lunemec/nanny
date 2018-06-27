@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"nanny/pkg/storage"
 	"net/http"
 	"os"
 	"time"
@@ -113,9 +114,14 @@ func runAPI() {
 	if err != nil {
 		log.Fatal("Unable to initialize notifiers", "err", err)
 	}
+	store, err := storage.NewSQLiteDB("file:nanny.sqlite")
+	if err != nil {
+		log.Fatal("Unable to create/load sqlite storage", "err", err)
+	}
 	api := api.Server{
 		Name:      config.Name,
 		Notifiers: notifiers,
+		Storage:   store,
 	}
 	handler, err := api.Handler()
 	if err != nil {
