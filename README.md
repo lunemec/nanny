@@ -75,6 +75,7 @@ You may get some warnings until both nanny's are listenning, but they will recov
 other will notify you.
 
 Be sure to change nanny SQLite DB location! They would share the same DB and it could cause strange behavior.
+This can be done in config file or by setting `NANNY_STORAGE_DSN` ENV variable.
 
 ## Logging
 By default, nanny logs only errors. To enable more verbose logging, use `LOGXI=*` environment variable.

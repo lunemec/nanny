@@ -1,6 +1,7 @@
 # You can customise Nanny's name to be able to tell more of them apart.
 name="Nanny"
 addr="localhost:8080"
+storage_dsn="file:nanny.sqlite" # SQLite data source name.
 
 # Individual notifier settings.
 [stderr]

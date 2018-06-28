@@ -22,11 +22,12 @@ import (
 
 // Config is a config, not much to say here, really.
 type Config struct {
-	Name   string
-	Addr   string
-	Stderr Stderr
-	Email  Email
-	Sentry Sentry
+	Name       string
+	Addr       string
+	StorageDSN string `mapstructure:"storage_dsn"`
+	Stderr     Stderr
+	Email      Email
+	Sentry     Sentry
 }
 
 // Stderr notifier config.
@@ -116,7 +117,7 @@ func runAPI() {
 	if err != nil {
 		log.Fatal("Unable to initialize notifiers", "err", err)
 	}
-	store, err := storage.NewSQLiteDB("file:nanny.sqlite")
+	store, err := storage.NewSQLiteDB(config.StorageDSN)
 	if err != nil {
 		log.Fatal("Unable to create/load sqlite storage", "err", err)
 	}
