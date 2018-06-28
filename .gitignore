@@ -13,3 +13,4 @@
 
 nanny
 nanny.sqlite
+*.tar.gz

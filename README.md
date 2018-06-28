@@ -1,9 +1,10 @@
+
 # Nanny
 [![Build Status](https://travis-ci.org/lunemec/nanny.svg?branch=master)](https://travis-ci.org/lunemec/nanny) [![Go Report Card](https://goreportcard.com/badge/github.com/lunemec/nanny)](https://goreportcard.com/report/github.com/lunemec/nanny) [![Maintainability](https://api.codeclimate.com/v1/badges/224b9390145c2e5a8046/maintainability)](https://codeclimate.com/github/lunemec/nanny/maintainability) [![codecov](https://codecov.io/gh/lunemec/nanny/branch/master/graph/badge.svg)](https://codecov.io/gh/lunemec/nanny)
 
-Nanny is a monitoring tool that monitors the **absence of action**.
+Nanny is a monitoring tool that monitors the **absence of activity**.
 
-Nanny runs API server, which expects to be called every N seconds, and if no such call is made, Nanny notifies you.
+Nanny runs an API server, which expects to be called every N seconds, and if no such call is made, Nanny notifies you.
 
 Nanny can notify you via these channels (for now):
 * print text to stderr
@@ -26,11 +27,11 @@ With this call, you tell nanny that if program named `my awesome program` does n
 
 After 5s pass, nanny prints to *stderr*:
 ```bash
-2018-06-26T14:24:29+02:00: Nanny: I did not hear from "my awesome program" in 5s! (Meta: map[])
+2018-06-26T14:24:29+02:00: Nanny: I haven't heard from "my awesome program" in the last 5s! (Meta: map[])
 ```
 
 ## Installation
-Easiest way is to download .tar.gz from **releases** section, edit `nanny.toml` and run it.
+The easiest way is to download .tar.gz from **releases** section, edit `nanny.toml` and run it.
 
 Or you can clone this repository and compile it yourself:
 ```bash
@@ -40,18 +41,18 @@ make build
 ```
 
 ## Configuration
-See nanny.toml for configuration example. The fields are self-explanatory (I think). Please create issue if anything does not make sense!
+See nanny.toml for a configuration example. The fields are self-explanatory (I think). Please create an issue if anything does not make sense!
 
 All enabled notifiers can be used via API, so enable only those you wish to allow.
 
-Program names used in API call's must be unique, they are used as key to load running
+Program names used in API calls must be unique, they are used as key to load running
 timers.
 ```bash
 curl http://localhost:8080/api/v1/signal --data '{ "name": "<- this must be unique", "notifier": "stderr", "next_signal": 5 }'
 ```
 
 ### ENV variables
-ENV variables can be used to override config file settings. They should be prefixed with `NANNY_`.
+ENV variables can be used to override the config file settings. They should be prefixed with `NANNY_`.
 
 Example:
 ```
@@ -59,7 +60,7 @@ NANNY_NAME="custom name" NANNY_ADDR="localhost:9090" LOGXI=* ./nanny
 ```
 
 ## Monitoring nanny
-You can use another nanny to monitor nanny, or create monitored nanny-pair.
+You can use one Nanny to monitor another Nanny or create a monitored Nanny-pair.
 
 Run 1st nanny, on port 8080 that will use nanny at port 9090 as its monitor:
 ```bash
@@ -71,11 +72,10 @@ Run 2nd nanny, on port 9090 that will use 1st nanny on port 8080:
 NANNY_ADDR="localhost:9090" LOGXI=* ./nanny --nanny "http://localhost:8080/api/v1/signal" --nanny-notifier "stderr"
 ```
 
-You may get some warnings until both nanny's are listenning, but they will recover. If you stop one of them, the
-other will notify you.
+You may get some warnings until both Nannies are listening, but they will recover. If you stop one of them, the other will notify you.
 
 Be sure to change nanny SQLite DB location! They would share the same DB and it could cause strange behavior.
-This can be done in config file or by setting `NANNY_STORAGE_DSN` ENV variable.
+This can be done in the config file or by setting `NANNY_STORAGE_DSN` ENV variable.
 
 ## Logging
 By default, nanny logs only errors. To enable more verbose logging, use `LOGXI=*` environment variable.
@@ -104,7 +104,7 @@ make lint                             Run gometalinter (you have to install it).
 ```
 
 ## FAQ
-> Why write such tool?
+> Why write such a tool?
 
 Sometimes you expect some job to run, say cron. But when someone messes up your crontab, or the machine is offline, you might not be notified.
 
@@ -112,4 +112,4 @@ Also often programs just log errors and fail silently, with nanny they fail loud
 
 > How do I secure my nanny?
 
-To use HTTPS, or authentication you should use reverse proxy like Apache or Nginx.
+To use HTTPS, or authentication you should use a reverse proxy like Apache or Nginx.
