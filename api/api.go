@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	"nanny/pkg/nanny"
@@ -33,10 +34,12 @@ type Server struct {
 type Signal struct {
 	// Name of program being monitored.
 	// IP addres of caller is appended to the name so it may be non-unique.
-	Name       string            `json:"name"`
-	Notifier   string            `json:"notifier"`    // What notifier to use.
-	NextSignal uint              `json:"next_signal"` // After how many seconds to expect next call.
-	Meta       map[string]string `json:"meta"`        // Metadata for this signal, may contain custom data.
+	Name     string `json:"name"`
+	Notifier string `json:"notifier"` // What notifier to use.
+	// After how many seconds to expect next call.
+	// May contain "10s", "1h": https://golang.org/pkg/time/#ParseDuration
+	NextSignal string            `json:"next_signal"`
+	Meta       map[string]string `json:"meta"` // Metadata for this signal, may contain custom data.
 }
 
 // Error represents JSON error to be sent to user.
@@ -263,25 +266,7 @@ func signalHandler(n *nanny.Nanny, notifiers notifiers, store storage.Storage, w
 		}
 	}
 
-	// Append IP address to the signal name.
-	host, _, err := net.SplitHostPort(req.RemoteAddr)
-	if err != nil {
-		log.Warn("Unable to split host from port", "addr", req.RemoteAddr, "err", err)
-	}
-	signal.Name = fmt.Sprintf("%s@%+v", signal.Name, host)
-	s := nanny.Signal{
-		Name:       signal.Name,
-		Notifier:   notif,
-		NextSignal: time.Duration(signal.NextSignal) * time.Second,
-		Meta:       signal.Meta,
-
-		CallbackFunc: func(s *nanny.Signal) {
-			err := store.Remove(storage.Signal{Name: s.Name})
-			if err != nil {
-				log.Error("Error removing signal from storage.", "err", err, "signal", signal)
-			}
-		},
-	}
+	s := constructSignal(signal, notif, store, req)
 	err = n.Handle(s)
 	if err != nil {
 		return errors.Wrap(err, "unable to handle signal")
@@ -300,6 +285,53 @@ func signalHandler(n *nanny.Nanny, notifiers notifiers, store storage.Storage, w
 		log.Error("Error saving signal to persistent storage", "err", err)
 	}
 	return nil
+}
+
+func constructSignal(jsonSignal Signal, notif notifier.Notifier, store storage.Storage, req *http.Request) nanny.Signal {
+	s := nanny.Signal{
+		Name:       constructName(jsonSignal.Name, req.RemoteAddr),
+		Notifier:   notif,
+		NextSignal: constructDuration(jsonSignal.NextSignal),
+		Meta:       jsonSignal.Meta,
+
+		CallbackFunc: func(s *nanny.Signal) {
+			err := store.Remove(storage.Signal{Name: s.Name})
+			if err != nil {
+				log.Error("Error removing signal from storage.", "err", err, "signal", jsonSignal)
+			}
+		},
+	}
+	return s
+}
+
+func constructName(name, remoteAddr string) string {
+	var outName string
+	// Split addr:port and add address to the name in format {programName}@{addr}.
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		outName = fmt.Sprintf("%s@%s", name, remoteAddr)
+		log.Warn("Unable to split host from port, using whole remote address.", "addr", remoteAddr, "err", err)
+	} else {
+		outName = fmt.Sprintf("%s@%s", name, host)
+	}
+
+	return outName
+}
+
+func constructDuration(nextSignal string) time.Duration {
+	d, err := time.ParseDuration(nextSignal)
+	if err != nil {
+		seconds, err := strconv.Atoi(nextSignal)
+		if err != nil {
+			// nextSignal string can't be converted to int, it is nonsense.
+			// When we set it to 0, which will cause invalid signal and return
+			// error to the user.
+			return time.Duration(0)
+		}
+		d = time.Duration(seconds) * time.Second
+	}
+
+	return d
 }
 
 // Close closes any io.Closer and checks for error, which will be logged.

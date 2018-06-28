@@ -21,9 +21,9 @@ $ LOGXI=* ./nanny
 ```
 Call it via curl:
 ```bash
-curl http://localhost:8080/api/v1/signal --data '{ "name": "my awesome program", "notifier": "stderr", "next_signal": 5 }'
+curl http://localhost:8080/api/v1/signal --data '{ "name": "my awesome program", "notifier": "stderr", "next_signal": "5s" }'
 ```
-With this call, you tell nanny that if program named `my awesome program` does not call again within `next_signal` seconds (5s), it should notify you using `stderr` notifier.
+With this call, you tell nanny that if program named `my awesome program` does not call again within `next_signal` (5s), it should notify you using `stderr` notifier.
 
 After 5s pass, nanny prints to *stderr*:
 ```bash
@@ -78,7 +78,7 @@ By default, nanny logs only errors. To enable more verbose logging, use `LOGXI=*
 You can add extra meta-data to the API calls, which will be passed to all the notifiers. Metadata must conform to type `map[string]string`.
 
 ```bash
-curl http://localhost:8080/api/v1/signal --data '{ "name": "<- this must be unique", "notifier": "stderr", "next_signal": 5 "meta":{"custom": "metadata"} }'
+curl http://localhost:8080/api/v1/signal --data '{ "name": "my program", "notifier": "stderr", "next_signal": "5"s "meta":{"custom": "metadata"} }'
 ```
 
 These metadata will be displayed in the messages for stderr and email, and in tags for sentry.
