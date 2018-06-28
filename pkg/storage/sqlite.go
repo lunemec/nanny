@@ -54,7 +54,10 @@ func (d *sqliteDB) Save(s Signal) error {
 }
 
 func (d *sqliteDB) Remove(s Signal) error {
-	_, err := d.db.Delete(&s)
+	if s.Name == "" {
+		return nil
+	}
+	_, err := d.db.Id(s.Name).Delete(&Signal{})
 	if err != nil {
 		return errors.Wrapf(err, "unable to remove sqlite record: %+v", s)
 	}

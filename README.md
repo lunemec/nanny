@@ -50,6 +50,32 @@ timers.
 curl http://localhost:8080/api/v1/signal --data '{ "name": "<- this must be unique", "notifier": "stderr", "next_signal": 5 }'
 ```
 
+### ENV variables
+ENV variables can be used to override config file settings. They should be prefixed with `NANNY_`.
+
+Example:
+```
+NANNY_NAME="custom name" NANNY_ADDR="localhost:9090" LOGXI=* ./nanny
+```
+
+## Monitoring nanny
+You can use another nanny to monitor nanny, or create monitored nanny-pair.
+
+Run 1st nanny, on port 8080 that will use nanny at port 9090 as its monitor:
+```bash
+NANNY_ADDR="localhost:8080" LOGXI=* ./nanny --nanny "http://localhost:9090/api/v1/signal" --nanny-notifier "stderr"
+```
+
+Run 2nd nanny, on port 9090 that will use 1st nanny on port 8080:
+```bash
+NANNY_ADDR="localhost:9090" LOGXI=* ./nanny --nanny "http://localhost:8080/api/v1/signal" --nanny-notifier "stderr"
+```
+
+You may get some warnings until both nanny's are listenning, but they will recover. If you stop one of them, the
+other will notify you.
+
+Be sure to change nanny SQLite DB location! They would share the same DB and it could cause strange behavior.
+
 ## Logging
 By default, nanny logs only errors. To enable more verbose logging, use `LOGXI=*` environment variable.
 

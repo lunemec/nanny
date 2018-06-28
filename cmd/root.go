@@ -2,11 +2,13 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"nanny/pkg/storage"
 	"net/http"
 	"os"
+	"os/signal"
 	"time"
 
 	"nanny/api"
@@ -118,6 +120,12 @@ func runAPI() {
 	if err != nil {
 		log.Fatal("Unable to create/load sqlite storage", "err", err)
 	}
+	defer func() {
+		err := store.Close()
+		if err != nil {
+			log.Fatal("Unable to close sqlite storage.")
+		}
+	}()
 	api := api.Server{
 		Name:      config.Name,
 		Notifiers: notifiers,
@@ -140,11 +148,29 @@ func runAPI() {
 		IdleTimeout:       time.Duration(10) * time.Second,
 	}
 
+	// CTRL+C handling.
+	idleConnsClosed := make(chan struct{})
+	go func() {
+		sigint := make(chan os.Signal, 1)
+		signal.Notify(sigint, os.Interrupt)
+		<-sigint
+		log.Info("Nanny shutting down.")
+
+		// We received an interrupt signal, shut down.
+		if err := server.Shutdown(context.Background()); err != nil {
+			// Error from closing listeners, or context timeout:
+			log.Error("HTTP server Shutdown: %v", err)
+		}
+		close(idleConnsClosed)
+	}()
+
 	log.Info("Nanny listening", "addr", server.Addr)
 	err = server.ListenAndServe()
-	if err != nil {
+	if err != http.ErrServerClosed {
 		log.Fatal("Unable to start API server", "err", err)
 	}
+
+	<-idleConnsClosed
 }
 
 func makeNotifiers() (map[string]notifier.Notifier, error) {

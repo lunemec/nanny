@@ -87,17 +87,29 @@ func loadStorage(n *nanny.Nanny, notifiers notifiers, store storage.Storage) {
 		msg := "Unable to load persisted signals. " +
 			"There may have been saved signals you will not be notified about! " +
 			"Please check services using Nanny manually."
-		log.Error(msg)
+		log.Warn(msg)
 		return
 	}
 
 	// Create nanny timers from persisted signals.
 	for _, signal := range signals {
+		// If NextSignal would be in the past, notify user, and delete it.
+		if signal.NextSignal.Before(time.Now()) {
+			msg := "Found previously stored notifier that is stale. Please check " +
+				"this program manually."
+			log.Warn(msg, "program", signal.Name, "should_notify", signal.NextSignal.String())
+			err := store.Remove(signal)
+			if err != nil {
+				log.Error("Unable to remove stale signal.", "err", err)
+			}
+			continue
+		}
+
 		notif, ok := notifiers[signal.Notifier]
 		if !ok {
 			msg := "Unable to find previously stored notifier. It may have been " +
 				"disabled. Please check this program manually."
-			log.Error(msg, "program", signal.Name)
+			log.Warn(msg, "program", signal.Name)
 		}
 		s := nanny.Signal{
 			Name:       signal.Name,
@@ -117,7 +129,7 @@ func loadStorage(n *nanny.Nanny, notifiers notifiers, store storage.Storage) {
 		if err != nil {
 			msg := "Unable to create signal handler from previous run," +
 				" please check this program manually."
-			log.Error(msg, "program", signal.Name, "err", err)
+			log.Warn(msg, "program", signal.Name, "err", err)
 			continue
 		}
 		log.Info("Loaded persisted signal successfull.",
@@ -254,6 +266,10 @@ func signalHandler(n *nanny.Nanny, notifiers notifiers, store storage.Storage, w
 		Notifier:   notif,
 		NextSignal: time.Duration(signal.NextSignal) * time.Second,
 		Meta:       signal.Meta,
+
+		CallbackFunc: func(s *nanny.Signal) {
+			store.Remove(storage.Signal{Name: s.Name})
+		},
 	}
 	err = n.Handle(s)
 	if err != nil {
