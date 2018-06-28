@@ -10,6 +10,7 @@ import (
 	"nanny/pkg/nanny"
 	"nanny/pkg/notifier"
 	"nanny/pkg/storage"
+	"nanny/pkg/version"
 
 	"github.com/gorilla/mux"
 	log "github.com/mgutz/logxi"
@@ -234,7 +235,7 @@ func depWrap(nanny *nanny.Nanny, notifiers notifiers, storage storage.Storage, h
 // versionHandler simply returns version of this nanny.
 func versionHandler(w http.ResponseWriter, req *http.Request) error {
 	w.WriteHeader(http.StatusOK)
-	_, err := io.WriteString(w, "Nanny v0.1")
+	_, err := io.WriteString(w, version.VersionString)
 	return errors.Wrap(err, "unable to reply with version")
 }
 
