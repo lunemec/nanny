@@ -98,7 +98,7 @@ func loadStorage(n *nanny.Nanny, notifiers notifiers, store storage.Storage) {
 			msg := "Found previously stored notifier that is stale. Please check " +
 				"this program manually."
 			log.Warn(msg, "program", signal.Name, "should_notify", signal.NextSignal.String())
-			err := store.Remove(signal)
+			err = store.Remove(signal)
 			if err != nil {
 				log.Error("Unable to remove stale signal.", "err", err)
 			}
@@ -114,7 +114,7 @@ func loadStorage(n *nanny.Nanny, notifiers notifiers, store storage.Storage) {
 		s := nanny.Signal{
 			Name:       signal.Name,
 			Notifier:   notif,
-			NextSignal: signal.NextSignal.Sub(time.Now()),
+			NextSignal: time.Until(signal.NextSignal),
 			Meta:       signal.Meta,
 
 			CallbackFunc: func(s *nanny.Signal) {
@@ -268,7 +268,10 @@ func signalHandler(n *nanny.Nanny, notifiers notifiers, store storage.Storage, w
 		Meta:       signal.Meta,
 
 		CallbackFunc: func(s *nanny.Signal) {
-			store.Remove(storage.Signal{Name: s.Name})
+			err := store.Remove(storage.Signal{Name: s.Name})
+			if err != nil {
+				log.Error("Error removing signal from storage.", "err", err, "signal", signal)
+			}
 		},
 	}
 	err = n.Handle(s)

@@ -12,6 +12,7 @@ type sqliteDB struct {
 	db *xorm.Engine
 }
 
+// NewSQLiteDB creates new Storage using sqlite backend.
 func NewSQLiteDB(dsn string) (Storage, error) {
 	engine, err := xorm.NewEngine("sqlite3", dsn)
 	if err != nil {
