@@ -27,7 +27,7 @@ With this call, you tell nanny that if program named `my awesome program` does n
 
 After 5s pass, nanny prints to *stderr*:
 ```bash
-2018-06-26T14:24:29+02:00: Nanny: I haven't heard from "my awesome program" in the last 5s! (Meta: map[])
+2018-06-26T14:24:29+02:00: Nanny: I haven't heard from "my awesome program@localhost:44554" in the last 5s! (Meta: map[])
 ```
 
 ## Installation
@@ -44,12 +44,6 @@ make build
 See nanny.toml for a configuration example. The fields are self-explanatory (I think). Please create an issue if anything does not make sense!
 
 All enabled notifiers can be used via API, so enable only those you wish to allow.
-
-Program names used in API calls must be unique, they are used as key to load running
-timers.
-```bash
-curl http://localhost:8080/api/v1/signal --data '{ "name": "<- this must be unique", "notifier": "stderr", "next_signal": 5 }'
-```
 
 ### ENV variables
 ENV variables can be used to override the config file settings. They should be prefixed with `NANNY_`.

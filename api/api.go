@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"time"
 
@@ -31,7 +32,7 @@ type Server struct {
 // Signal represents incomming JSON-encoded data to process.
 type Signal struct {
 	// Name of program being monitored.
-	// This must be unique for each monitored instance.
+	// IP addres of caller is appended to the name so it may be non-unique.
 	Name       string            `json:"name"`
 	Notifier   string            `json:"notifier"`    // What notifier to use.
 	NextSignal uint              `json:"next_signal"` // After how many seconds to expect next call.
@@ -262,6 +263,12 @@ func signalHandler(n *nanny.Nanny, notifiers notifiers, store storage.Storage, w
 		}
 	}
 
+	// Append IP address to the signal name.
+	host, _, err := net.SplitHostPort(req.RemoteAddr)
+	if err != nil {
+		log.Warn("Unable to split host from port", "addr", req.RemoteAddr, "err", err)
+	}
+	signal.Name = fmt.Sprintf("%s@%+v", signal.Name, host)
 	s := nanny.Signal{
 		Name:       signal.Name,
 		Notifier:   notif,
