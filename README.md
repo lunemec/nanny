@@ -40,6 +40,8 @@ cd nanny
 make build
 ```
 
+Note that Nanny requires Go >= 1.8 to run.
+
 ## Configuration
 See nanny.toml for a configuration example. The fields are self-explanatory (I think). Please create an issue if anything does not make sense!
 
