@@ -119,7 +119,7 @@ func runAPI() {
 	}
 	store, err := storage.NewSQLiteDB(config.StorageDSN)
 	if err != nil {
-		log.Fatal("Unable to create/load sqlite storage", "err", err)
+		log.Fatal("Unable to create/load sqlite storage", "dsn", config.StorageDSN, "err", err)
 	}
 	defer func() {
 		err := store.Close()

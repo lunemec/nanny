@@ -17,3 +17,11 @@ nanny.sqlite
 *.tar.gz
 *.deb
 coverage.txt
+
+debian/nanny.substvars
+debian/debhelper-build-stamp
+debian/files
+debian/nanny.debhelper.log
+debian/nanny.postinst.debhelper
+debian/nanny.postrm.debhelper
+debian/nanny.prerm.debhelper

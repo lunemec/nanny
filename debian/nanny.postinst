@@ -25,7 +25,8 @@ USERNAME="nanny"
 case "$1" in
 configure)
     adduser --system --disabled-login --no-create-home --disabled-password  $USERNAME
-    chown -R nanny /var/log/nanny
+    chown -R nanny /var/lib/nanny
+    chmod 700 /var/lib/nanny
     ;;
 abort-upgrade)
     # Nop
