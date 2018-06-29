@@ -6,7 +6,6 @@ After=network.target
 [Service]
 Type=simple
 User=nanny
-WorkingDirectory=/home/nanny
 ExecStart=LOGXI=* /usr/bin/nanny
 Restart=on-failure
 
