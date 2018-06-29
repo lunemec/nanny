@@ -1,0 +1,16 @@
+Source: nanny
+Section: net
+Maintainer: Lukas Nemec 2 <lukas.nemec2@firma.seznam.cz>
+Build-Depends: debhelper (>= 8.0.0),
+               dh-systemd,
+               dh-golang,
+               golang-go (>= 1.8),
+Standards-Version: 3.9.8
+
+Package: nanny
+Architecture: any
+Depends: ${misc:Depends}, ${shlibs:Depends}, adduser
+Built-Using:
+Description: monitoring tool that monitors the absence of activity.
+ Nanny runs an API server, which expects to be called every N seconds, 
+ and if no such call is made, Nanny notifies you.

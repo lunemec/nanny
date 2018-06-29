@@ -1,0 +1,14 @@
+[Unit]
+Description=Nanny monitoring API
+Requires=network.target
+After=network.target
+
+[Service]
+Type=simple
+User=nanny
+WorkingDirectory=/home/nanny
+ExecStart=LOGXI=* /usr/bin/nanny
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

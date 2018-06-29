@@ -1,0 +1,26 @@
+#!/usr/bin/make -f
+
+PROJECT=nanny
+
+TMP_DIR := ${CURDIR}/build/tmp
+SRC_DIR := ${TMP_DIR}/src/${PROJECT}
+DEST_DIR := ${CURDIR}/build
+
+%:
+	dh $@ --with=systemd
+
+override_dh_auto_configure:
+	mkdir -p ${TMP_DIR}/src/`dirname ${PROJECT}`
+	ln -s ${CURDIR} ${SRC_DIR}
+
+override_dh_auto_build:
+	GOPATH=${TMP_DIR} go build -v -o ${DEST_DIR}/nanny \
+	${SRC_DIR}/main.go
+
+override_dh_auto_test:
+	cd ${TMP_DIR}/src/${PROJECT} && \
+	GOPATH=${TMP_DIR} go test ./...
+
+override_dh_auto_clean:
+	rm -rf ${TMP_DIR}
+	rm -rf ${DEST_DIR}

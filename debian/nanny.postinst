@@ -1,0 +1,41 @@
+#!/bin/bash
+
+set -e
+
+USERNAME="nanny"
+
+# This script can be called in the following ways:
+#
+# After the package was installed:
+#       <postinst> configure <old-version>
+#
+# If prerm fails during upgrade or fails on failed upgrade:
+#       <old-postinst> abort-upgrade <new-version>
+#
+# If prerm fails during removal:
+#       <old-postinst> abort-remove
+#
+# If prerm fails during deconfiguration of a package:
+#       <postinst> abort-deconfigure in-favour <new-package> <version>
+#                  removing <old-package> <version>
+#
+# If prerm fails during replacement due to conflict:
+#       <postinst> abort-remove in-favour <new-package> <version>
+
+case "$1" in
+configure)
+    adduser --system --disabled-login --no-create-home --disabled-password  $USERNAME
+    chown -R nanny /var/log/nanny
+    ;;
+abort-upgrade)
+    # Nop
+    ;;
+abort-remove)
+    # Nop
+    ;;
+abort-deconfigure)
+    # Nop
+    ;;
+esac
+
+#DEBHELPER#

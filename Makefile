@@ -1,3 +1,4 @@
+.PHONY: build
 SHELL := /bin/bash
 export TESTS
 header = "  \e[1;34m%-30s\e[m \n"
