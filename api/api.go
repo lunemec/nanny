@@ -152,7 +152,6 @@ func router(nanny *nanny.Nanny, notifiers notifiers, store storage.Storage) *mux
 	apiRouter.Handle("/version", panicWrap(headerWrap(errWrap(versionHandler))))
 	// In case of future API changes, nanny will support older versions of API.
 	v1Router := apiRouter.PathPrefix("/v1").Subrouter()
-	// TODO add listing of signals.
 	v1Router.Handle("/signal", panicWrap(headerWrap(errWrap(depWrap(nanny, notifiers, store, signalHandler))))).Methods("POST")
 
 	return router
