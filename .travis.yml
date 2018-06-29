@@ -1,8 +1,6 @@
 go_import_path: nanny
 language: go
 go:
-  - "1.8"
-  - "1.9"
   - "1.x"
 
 script: 
