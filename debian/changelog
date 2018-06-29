@@ -1,6 +1,6 @@
 nanny (0.3) stable; urgency=medium
 
-  * IP address is not appended to signal name, so it doesn't need to be
+  * IP address is appended to signal name, so it doesn't need to be
     unique.
   * Added debian packaging.
   * Added the option to use human readable duration representation, e.g.
