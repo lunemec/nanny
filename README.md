@@ -48,12 +48,66 @@ See nanny.toml for a configuration example. The fields are self-explanatory (I t
 All enabled notifiers can be used via API, so enable only those you wish to allow.
 
 ### ENV variables
-ENV variables can be used to override the config file settings. They should be prefixed with `NANNY_`.
+ENV variables can be used to override the config file settings. They should be prefixed with `NANNY_` and followed by same name as in `nanny.toml`.
 
 Example:
 ```
 NANNY_NAME="custom name" NANNY_ADDR="localhost:9090" LOGXI=* ./nanny
 ```
+
+## API
+### Nanny version
+  Print nanny version.
+
+* **URL**
+
+  /api/version
+
+* **Method:**
+  
+  `GET`
+  
+* **Success Response:**
+  
+  * **Code:** 200  
+    **Content:** `Nanny vX.Y`
+
+### Signal
+  Signal Nanny to register notification with given parameters.
+
+* **URL**
+
+  /api/v1/signal
+
+* **Method:**
+  
+  `POST`
+  
+* **Data Params**
+  ```json
+  {
+    "name": "name of monitored program",
+    "notifier": "stderr", # You can use only enabled notifiers, see config.
+    "next_signal": "55s", # When to expect next call (or notify).
+    "meta": {             # Meta can contain any string:string values,
+      "extra": "data"     # they are passed to the notifiers and will eventually
+    }                     # be passed to the user.
+  }
+  ```
+
+* **Success Response:**
+  
+  * **Code:** 200  
+    **Content:** 
+ 
+* **Error Response:**
+  * **Code:** 400 Bad Request  
+    **Content:** `{"status_code":400,"error":"unable to find notifier: "}`
+
+  OR
+
+  * **Code:** 500 Internal Server Error  
+    **Content:** `Message describing error, may be JSON or may be text.`
 
 ## Monitoring nanny
 You can use one Nanny to monitor another Nanny or create a monitored Nanny-pair.
