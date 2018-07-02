@@ -84,7 +84,7 @@ NANNY_NAME="custom name" NANNY_ADDR="localhost:9090" LOGXI=* ./nanny
   `POST`
   
 * **Data Params**
-  ```json
+  ```js
   {
     "name": "name of monitored program",
     "notifier": "stderr", # You can use only enabled notifiers, see config.
