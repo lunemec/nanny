@@ -28,6 +28,7 @@ type Config struct {
 	Stderr     Stderr
 	Email      Email
 	Sentry     Sentry
+	Twilio     Twilio
 }
 
 // Stderr notifier config.
@@ -52,6 +53,16 @@ type Email struct {
 type Sentry struct {
 	Enabled bool
 	DSN     string
+}
+
+// Twilio SMS config.
+type Twilio struct {
+	Enabled    bool
+	AccountSID string
+	AuthToken  string
+	AppSID     string
+	From       string
+	To         string
 }
 
 var (
@@ -197,6 +208,15 @@ func makeNotifiers() (map[string]notifier.Notifier, error) {
 			return nil, errors.Wrap(err, "unable to create sentry notifier")
 		}
 		notifiers["sentry"] = sentryNotifier
+	}
+	if config.Twilio.Enabled {
+		notifiers["twilio"] = notifier.NewTwilio(
+			config.Twilio.AccountSID,
+			config.Twilio.AuthToken,
+			config.Twilio.AppSID,
+			config.Twilio.From,
+			config.Twilio.To,
+		)
 	}
 
 	return notifiers, nil
