@@ -13,7 +13,7 @@ type sentry struct {
 func NewSentry(dsn string) (Notifier, error) {
 	cli, err := raven.New(dsn)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to inicialize sentry")
+		return nil, errors.Wrap(err, "unable to initialize sentry")
 	}
 	return &sentry{cli: cli}, nil
 }
