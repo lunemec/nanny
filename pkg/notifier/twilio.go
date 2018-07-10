@@ -13,6 +13,7 @@ type twilio struct {
 	t      *gotwilio.Twilio
 }
 
+// NewTwilio creates twilio sms sending notifier.
 func NewTwilio(accountSid, authToken, appSid, from, to string) Notifier {
 	return &twilio{
 		t:    gotwilio.NewTwilioClient(accountSid, authToken),
@@ -26,8 +27,13 @@ func (n *twilio) Notify(msg Message) error {
 	if err != nil {
 		return errors.Wrap(err, "unable to send SMS via twilio")
 	}
-	if exc.Status != 0 {
-		return errors.Errorf("unable to send SMS via twilio: %+v", exc)
+	if exc != nil {
+		return errors.Errorf("error while sending SMS via twilio: %+v", exc)
+	}
+	// I know it does not make sense that resp would be nil, but since the type
+	// is *gotwilio.SmsResponse we should check.
+	if resp == nil {
+		return errors.Errorf("*gotwilio.SmsResponse is nil, WUT?")
 	}
 	if resp.Status == "undelivered" || resp.Status == "failed" {
 		return errors.Errorf("unable to send SMS via twilio: %+v", resp)
