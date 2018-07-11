@@ -21,3 +21,11 @@ smtp_password=""
 [sentry]
 enabled=true
 dsn=""
+
+[twilio]
+enabled=true
+accountSid=""
+authToken=""
+appSid=""
+from=""
+to=""
