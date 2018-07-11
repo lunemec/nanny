@@ -10,6 +10,7 @@ Nanny can notify you via these channels (for now):
 * print text to stderr
 * email
 * sentry
+* sms (twilio)
 
 ## Example
 Run API server:
