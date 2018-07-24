@@ -45,6 +45,18 @@ type validSignal Signal
 // during notifier.Notify call.
 type ErrorFunc func(error)
 
+// NannyTimer encapsulates a signal and its timer
+type nannyTimer struct {
+	signal validSignal
+	timer  *time.Timer
+}
+
+// Reset updates the nannyTimers signal to reset the timer
+func (n *nannyTimer) Reset(s validSignal) {
+	n.signal = s
+	n.timer.Reset(s.NextSignal)
+}
+
 // defaultErrorFunc is used when no Nanny.ErrorFunc is specified, it simply prints
 // the error to stdout.
 func defaultErrorFunc(err error) {
@@ -85,15 +97,18 @@ func (n *Nanny) handle(s validSignal) error {
 	if timer != nil {
 		// Timer exists, reset the timer to the new signal value.
 		n.lock.Lock()
-		timer.Reset(s.NextSignal)
+		timer.Reset(s)
 		n.lock.Unlock()
 	} else {
 		// No timer is registered for this program, create it.
-		newTimer := time.AfterFunc(s.NextSignal, func() {
-			err := s.Notifier.Notify(n.msg(s))
+		newTimer := &nannyTimer{s, time.NewTimer(s.NextSignal)}
+
+		go func() {
+			<-newTimer.timer.C
+			err := newTimer.signal.Notifier.Notify(n.msg(newTimer.signal))
 			if err != nil {
 				// Add context to the error message and call ErrorFunc.
-				err = errors.Wrapf(err, "error calling notifier: %T with signal: %+v", s.Notifier, s)
+				err = errors.Wrapf(err, "error calling notifier: %T with signal: %+v", newTimer.signal.Notifier, newTimer.signal)
 				if n.ErrorFunc == nil {
 					defaultErrorFunc(err)
 				} else {
@@ -103,10 +118,11 @@ func (n *Nanny) handle(s validSignal) error {
 
 			// Call callback if set.
 			if s.CallbackFunc != nil {
-				signal := Signal(s)
-				s.CallbackFunc(&signal)
+				signal := Signal(newTimer.signal)
+				newTimer.signal.CallbackFunc(&signal)
 			}
-		})
+		}()
+
 		n.SetTimer(s.Name, newTimer)
 	}
 
@@ -129,15 +145,15 @@ func (n *Nanny) msg(s validSignal) notifier.Message {
 
 // GetTimer returns time.Timer when given program name is already registered or
 // nil.
-func (n *Nanny) GetTimer(name string) *time.Timer {
+func (n *Nanny) GetTimer(name string) *nannyTimer {
 	value, ok := n.timers.GetStringKey(name)
 	if !ok {
 		return nil
 	}
-	return value.(*time.Timer)
+	return value.(*nannyTimer)
 }
 
 // SetTimer sets new timer for given program name.
-func (n *Nanny) SetTimer(name string, timer *time.Timer) {
+func (n *Nanny) SetTimer(name string, timer *nannyTimer) {
 	n.timers.Set(name, timer)
 }
