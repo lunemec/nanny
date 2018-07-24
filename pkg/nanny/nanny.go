@@ -101,10 +101,8 @@ func (n *Nanny) handle(s validSignal) error {
 		n.lock.Unlock()
 	} else {
 		// No timer is registered for this program, create it.
-		newTimer := &nannyTimer{s, time.NewTimer(s.NextSignal)}
-
-		go func() {
-			<-newTimer.timer.C
+		newTimer := &nannyTimer{signal: s}
+		newTimer.timer = time.AfterFunc(newTimer.signal.NextSignal, func() {
 			err := newTimer.signal.Notifier.Notify(n.msg(newTimer.signal))
 			if err != nil {
 				// Add context to the error message and call ErrorFunc.
@@ -121,8 +119,7 @@ func (n *Nanny) handle(s validSignal) error {
 				signal := Signal(newTimer.signal)
 				newTimer.signal.CallbackFunc(&signal)
 			}
-		}()
-
+		})
 		n.SetTimer(s.Name, newTimer)
 	}
 
