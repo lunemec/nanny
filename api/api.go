@@ -287,8 +287,12 @@ func signalHandler(n *nanny.Nanny, notifiers notifiers, store storage.Storage, w
 }
 
 func constructSignal(jsonSignal Signal, notif notifier.Notifier, store storage.Storage, req *http.Request) nanny.Signal {
+	remoteAddr := req.Header.Get("X-Forwarded-For")
+	if remoteAddr == "" {
+		remoteAddr = req.RemoteAddr
+	}
 	s := nanny.Signal{
-		Name:       constructName(jsonSignal.Name, req.RemoteAddr),
+		Name:       constructName(jsonSignal.Name, remoteAddr),
 		Notifier:   notif,
 		NextSignal: constructDuration(jsonSignal.NextSignal),
 		Meta:       jsonSignal.Meta,
