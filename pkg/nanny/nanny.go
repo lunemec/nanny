@@ -52,9 +52,9 @@ type nannyTimer struct {
 }
 
 // Reset updates the nannyTimers signal to reset the timer
-func (n *nannyTimer) Reset(s validSignal) {
-	n.signal = s
-	n.timer.Reset(s.NextSignal)
+func (n *nannyTimer) Reset(d time.Duration) {
+	n.signal.NextSignal = d
+	n.timer.Reset(d)
 }
 
 // defaultErrorFunc is used when no Nanny.ErrorFunc is specified, it simply prints
@@ -97,7 +97,7 @@ func (n *Nanny) handle(s validSignal) error {
 	if timer != nil {
 		// Timer exists, reset the timer to the new signal value.
 		n.lock.Lock()
-		timer.Reset(s)
+		timer.Reset(s.NextSignal)
 		n.lock.Unlock()
 	} else {
 		// No timer is registered for this program, create it.
