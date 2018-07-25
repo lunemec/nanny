@@ -115,7 +115,7 @@ func (n *Nanny) handle(s validSignal) error {
 			}
 
 			// Call callback if set.
-			if s.CallbackFunc != nil {
+			if newTimer.signal.CallbackFunc != nil {
 				signal := Signal(newTimer.signal)
 				newTimer.signal.CallbackFunc(&signal)
 			}
