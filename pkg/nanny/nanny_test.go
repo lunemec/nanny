@@ -280,10 +280,10 @@ func TestMsgChange(t *testing.T) {
 }
 
 func TestNannyTimer(t *testing.T) {
-	n := nanny.Nanny{Name: "test msg changing nanny"}
+	n := nanny.Nanny{Name: "test nanny nannyTimer"}
 	dummy := &DummyNotifier{}
 	signal := nanny.Signal{
-		Name:         "test msg changing program",
+		Name:         "test nannyTimer",
 		Notifier:     dummy,
 		NextSignal:   time.Duration(2) * time.Second,
 		CallbackFunc: func(s *nanny.Signal) {},
@@ -294,7 +294,7 @@ func TestNannyTimer(t *testing.T) {
 	}
 
 	// Trigger the first signal's error.
-	time.Sleep(time.Duration(2) * time.Second)
+	time.Sleep(time.Duration(2)*time.Second + time.Duration(100)*time.Millisecond)
 
 	// Before the `NextSignal` duration, nothing should happen.
 	dummyMsg := dummy.NotifyMsg()
@@ -303,7 +303,7 @@ func TestNannyTimer(t *testing.T) {
 	}
 	// Call handle with different nextsignal again to simulate program calling before notification.
 	err = n.Handle(nanny.Signal{
-		Name:         "test msg changing program",
+		Name:         "test nannyTimer",
 		Notifier:     dummy,
 		NextSignal:   time.Duration(1) * time.Second,
 		CallbackFunc: func(s *nanny.Signal) {},
@@ -320,6 +320,6 @@ func TestNannyTimer(t *testing.T) {
 
 	msg := dummyMsg.Format()
 	if strings.Contains(msg, "2s") {
-		t.Errorf("dummy msg should not contain 1s after NextSignal time expired: %v\n", dummyMsg)
+		t.Errorf("dummy msg should not contain 2s after NextSignal time expired: %v\n", dummyMsg)
 	}
 }

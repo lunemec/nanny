@@ -33,9 +33,6 @@ func (nt *nannyTimer) Reset(d time.Duration) {
 }
 
 func (nt *nannyTimer) onExpire() {
-	nt.lock.Lock()
-	defer nt.lock.Unlock()
-
 	err := nt.notify()
 	if err != nil {
 		// Add context to the error message and call ErrorFunc.
@@ -48,13 +45,17 @@ func (nt *nannyTimer) onExpire() {
 	}
 
 	// Call callback if set.
+	nt.lock.Lock()
 	if nt.signal.CallbackFunc != nil {
 		signal := Signal(nt.signal)
 		nt.signal.CallbackFunc(&signal)
 	}
+	nt.lock.Unlock()
 }
 
 func (nt *nannyTimer) notify() error {
+	nt.lock.Lock()
+	defer nt.lock.Unlock()
 	name := "Nanny"
 	if nt.nanny.Name != "" {
 		name = nt.nanny.Name
