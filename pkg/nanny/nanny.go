@@ -84,7 +84,7 @@ func (n *Nanny) handle(s validSignal) error {
 		timer.Reset(s.NextSignal)
 	} else {
 		// No timer is registered for this program, create it.
-		n.SetTimer(s.Name, newNannyTimer(s, n))
+		n.SetTimer(s.Name, newTimer(s, n))
 	}
 
 	return nil
@@ -92,15 +92,15 @@ func (n *Nanny) handle(s validSignal) error {
 
 // GetTimer returns time.Timer when given program name is already registered or
 // nil.
-func (n *Nanny) GetTimer(name string) *nannyTimer {
+func (n *Nanny) GetTimer(name string) *Timer {
 	value, ok := n.timers.GetStringKey(name)
 	if !ok {
 		return nil
 	}
-	return value.(*nannyTimer)
+	return value.(*Timer)
 }
 
 // SetTimer sets new timer for given program name.
-func (n *Nanny) SetTimer(name string, timer *nannyTimer) {
+func (n *Nanny) SetTimer(name string, timer *Timer) {
 	n.timers.Set(name, timer)
 }

@@ -8,8 +8,8 @@ import (
 	"github.com/pkg/errors"
 )
 
-// NannyTimer encapsulates a signal and its timer
-type nannyTimer struct {
+// Timer encapsulates a signal and its timer
+type Timer struct {
 	signal validSignal
 	timer  *time.Timer
 	nanny  *Nanny
@@ -17,14 +17,14 @@ type nannyTimer struct {
 	lock sync.Mutex
 }
 
-func newNannyTimer(s validSignal, nanny *Nanny) *nannyTimer {
-	timer := &nannyTimer{signal: s, nanny: nanny}
+func newTimer(s validSignal, nanny *Nanny) *Timer {
+	timer := &Timer{signal: s, nanny: nanny}
 	timer.timer = time.AfterFunc(timer.signal.NextSignal, timer.onExpire)
 	return timer
 }
 
 // Reset updates the nannyTimers signal to reset the timer
-func (nt *nannyTimer) Reset(d time.Duration) {
+func (nt *Timer) Reset(d time.Duration) {
 	nt.lock.Lock()
 	defer nt.lock.Unlock()
 
@@ -32,7 +32,7 @@ func (nt *nannyTimer) Reset(d time.Duration) {
 	nt.timer.Reset(d)
 }
 
-func (nt *nannyTimer) onExpire() {
+func (nt *Timer) onExpire() {
 	err := nt.notify()
 	if err != nil {
 		// Add context to the error message and call ErrorFunc.
@@ -53,7 +53,7 @@ func (nt *nannyTimer) onExpire() {
 	nt.lock.Unlock()
 }
 
-func (nt *nannyTimer) notify() error {
+func (nt *Timer) notify() error {
 	nt.lock.Lock()
 	defer nt.lock.Unlock()
 	name := "Nanny"
