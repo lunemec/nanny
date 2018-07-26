@@ -45,18 +45,6 @@ type validSignal Signal
 // during notifier.Notify call.
 type ErrorFunc func(error)
 
-// NannyTimer encapsulates a signal and its timer
-type nannyTimer struct {
-	signal validSignal
-	timer  *time.Timer
-}
-
-// Reset updates the nannyTimers signal to reset the timer
-func (n *nannyTimer) Reset(d time.Duration) {
-	n.signal.NextSignal = d
-	n.timer.Reset(d)
-}
-
 // defaultErrorFunc is used when no Nanny.ErrorFunc is specified, it simply prints
 // the error to stdout.
 func defaultErrorFunc(err error) {
@@ -96,48 +84,13 @@ func (n *Nanny) handle(s validSignal) error {
 
 	if timer != nil {
 		// Timer exists, reset the timer to the new signal value.
-		n.lock.Lock()
 		timer.Reset(s.NextSignal)
-		n.lock.Unlock()
 	} else {
 		// No timer is registered for this program, create it.
-		newTimer := &nannyTimer{signal: s}
-		newTimer.timer = time.AfterFunc(newTimer.signal.NextSignal, func() {
-			err := newTimer.signal.Notifier.Notify(n.msg(newTimer.signal))
-			if err != nil {
-				// Add context to the error message and call ErrorFunc.
-				err = errors.Wrapf(err, "error calling notifier: %T with signal: %+v", newTimer.signal.Notifier, newTimer.signal)
-				if n.ErrorFunc == nil {
-					defaultErrorFunc(err)
-				} else {
-					n.ErrorFunc(err)
-				}
-			}
-
-			// Call callback if set.
-			if newTimer.signal.CallbackFunc != nil {
-				signal := Signal(newTimer.signal)
-				newTimer.signal.CallbackFunc(&signal)
-			}
-		})
-		n.SetTimer(s.Name, newTimer)
+		n.SetTimer(s.Name, newNannyTimer(s, n))
 	}
 
 	return nil
-}
-
-// msg creates message from validSignal that will be sent via notifier.
-func (n *Nanny) msg(s validSignal) notifier.Message {
-	name := "Nanny"
-	if n.Name != "" {
-		name = n.Name
-	}
-	return notifier.Message{
-		Nanny:      name,
-		Program:    s.Name,
-		NextSignal: s.NextSignal,
-		Meta:       s.Meta,
-	}
 }
 
 // GetTimer returns time.Timer when given program name is already registered or
