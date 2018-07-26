@@ -2,7 +2,6 @@ package nanny
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	"nanny/pkg/notifier"
@@ -19,8 +18,6 @@ type Nanny struct {
 	// If not specified, uses defaultErrorFunc.
 	ErrorFunc ErrorFunc
 	timers    hashmap.HashMap // Map of program names (Signal.Name) to their timers.
-
-	lock sync.Mutex
 }
 
 // Signal represents program calling nanny to notify with given notifier if

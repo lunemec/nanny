@@ -2,6 +2,7 @@ package nanny
 
 import (
 	"nanny/pkg/notifier"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -13,7 +14,7 @@ type nannyTimer struct {
 	timer  *time.Timer
 	nanny  *Nanny
 
-	errorFunc ErrorFunc
+	lock sync.Mutex
 }
 
 func newNannyTimer(s validSignal, nanny *Nanny) *nannyTimer {
@@ -24,10 +25,11 @@ func newNannyTimer(s validSignal, nanny *Nanny) *nannyTimer {
 
 // Reset updates the nannyTimers signal to reset the timer
 func (nt *nannyTimer) Reset(d time.Duration) {
-	nt.nanny.lock.Lock()
+	nt.lock.Lock()
+	defer nt.lock.Unlock()
+
 	nt.signal.NextSignal = d
 	nt.timer.Reset(d)
-	nt.nanny.lock.Unlock()
 }
 
 func (nt *nannyTimer) onExpire() {
@@ -35,15 +37,17 @@ func (nt *nannyTimer) onExpire() {
 	if err != nil {
 		// Add context to the error message and call ErrorFunc.
 		err = errors.Wrapf(err, "error calling notifier: %T with signal: %+v", nt.signal.Notifier, nt.signal)
-		if nt.errorFunc == nil {
+		if nt.nanny.ErrorFunc == nil {
 			defaultErrorFunc(err)
 		} else {
-			nt.errorFunc(err)
+			nt.nanny.ErrorFunc(err)
 		}
 	}
 
 	// Call callback if set.
 	if nt.signal.CallbackFunc != nil {
+		nt.lock.Lock()
+		defer nt.lock.Unlock()
 		signal := Signal(nt.signal)
 		nt.signal.CallbackFunc(&signal)
 	}
