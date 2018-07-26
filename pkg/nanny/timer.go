@@ -33,6 +33,9 @@ func (nt *nannyTimer) Reset(d time.Duration) {
 }
 
 func (nt *nannyTimer) onExpire() {
+	nt.lock.Lock()
+	defer nt.lock.Unlock()
+
 	err := nt.notify()
 	if err != nil {
 		// Add context to the error message and call ErrorFunc.
@@ -46,8 +49,6 @@ func (nt *nannyTimer) onExpire() {
 
 	// Call callback if set.
 	if nt.signal.CallbackFunc != nil {
-		nt.lock.Lock()
-		defer nt.lock.Unlock()
 		signal := Signal(nt.signal)
 		nt.signal.CallbackFunc(&signal)
 	}
