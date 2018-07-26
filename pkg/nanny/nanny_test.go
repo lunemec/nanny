@@ -2,6 +2,7 @@ package nanny_test
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -234,5 +235,91 @@ func TestMultipleTimerResets(t *testing.T) {
 	dummyMsg = dummy.NotifyMsg()
 	if dummyMsg.Program == "" {
 		t.Errorf("dummy msg should not be empty after NextSignal time expired: %v\n", dummyMsg)
+	}
+}
+
+func TestMsgChange(t *testing.T) {
+	n := nanny.Nanny{Name: "test msg changing nanny"}
+	dummy := &DummyNotifier{}
+	signal := nanny.Signal{
+		Name:       "test msg changing program",
+		Notifier:   dummy,
+		NextSignal: time.Duration(2) * time.Second,
+	}
+
+	err := n.Handle(signal)
+	if err != nil {
+		t.Errorf("n.Signal should not return error, got: %v\n", err)
+	}
+
+	// Before the `NextSignal` duration, nothing should happen.
+	dummyMsg := dummy.NotifyMsg()
+	if dummyMsg.Program != "" {
+		t.Errorf("dummy msg should be empty before NextSignal time expires: %v\n", dummyMsg)
+	}
+	// Call handle with different nextsignal again to simulate program calling before notification.
+	err = n.Handle(nanny.Signal{
+		Name:       "test msg changing program",
+		Notifier:   dummy,
+		NextSignal: time.Duration(1) * time.Second,
+	})
+	if err != nil {
+		t.Errorf("n.Signal should not return error, got: %v\n", err)
+	}
+	// After 1s, DummyNotifier should return error.
+	time.Sleep(time.Duration(1)*time.Second + time.Duration(100)*time.Millisecond)
+	dummyMsg = dummy.NotifyMsg()
+	if dummyMsg.Program == "" {
+		t.Errorf("dummy msg should not be empty after NextSignal time expired: %v\n", dummyMsg)
+	}
+
+	msg := dummyMsg.Format()
+	if strings.Contains(msg, "2s") {
+		t.Errorf("dummy msg should not contain 1s after NextSignal time expired: %v\n", dummyMsg)
+	}
+}
+
+func TestNannyTimer(t *testing.T) {
+	n := nanny.Nanny{Name: "test nanny nannyTimer"}
+	dummy := &DummyNotifier{}
+	signal := nanny.Signal{
+		Name:         "test nannyTimer",
+		Notifier:     dummy,
+		NextSignal:   time.Duration(2) * time.Second,
+		CallbackFunc: func(s *nanny.Signal) {},
+	}
+	err := n.Handle(signal)
+	if err != nil {
+		t.Errorf("n.Signal should not return error, got: %v\n", err)
+	}
+
+	// Trigger the first signal's error.
+	time.Sleep(time.Duration(2)*time.Second + time.Duration(100)*time.Millisecond)
+
+	// Before the `NextSignal` duration, nothing should happen.
+	dummyMsg := dummy.NotifyMsg()
+	if dummyMsg.Program == "" {
+		t.Errorf("dummy msg should not be empty after NextSignal time expires: %v\n", dummyMsg)
+	}
+	// Call handle with different nextsignal again to simulate program calling before notification.
+	err = n.Handle(nanny.Signal{
+		Name:         "test nannyTimer",
+		Notifier:     dummy,
+		NextSignal:   time.Duration(1) * time.Second,
+		CallbackFunc: func(s *nanny.Signal) {},
+	})
+	if err != nil {
+		t.Errorf("n.Signal should not return error, got: %v\n", err)
+	}
+	// After 1s, DummyNotifier should return error.
+	time.Sleep(time.Duration(1)*time.Second + time.Duration(100)*time.Millisecond)
+	dummyMsg = dummy.NotifyMsg()
+	if dummyMsg.Program == "" {
+		t.Errorf("dummy msg should not be empty after NextSignal time expired: %v\n", dummyMsg)
+	}
+
+	msg := dummyMsg.Format()
+	if strings.Contains(msg, "2s") {
+		t.Errorf("dummy msg should not contain 2s after NextSignal time expired: %v\n", dummyMsg)
 	}
 }

@@ -2,7 +2,6 @@ package nanny
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	"nanny/pkg/notifier"
@@ -19,8 +18,6 @@ type Nanny struct {
 	// If not specified, uses defaultErrorFunc.
 	ErrorFunc ErrorFunc
 	timers    hashmap.HashMap // Map of program names (Signal.Name) to their timers.
-
-	lock sync.Mutex
 }
 
 // Signal represents program calling nanny to notify with given notifier if
@@ -84,60 +81,26 @@ func (n *Nanny) handle(s validSignal) error {
 
 	if timer != nil {
 		// Timer exists, reset the timer to the new signal value.
-		n.lock.Lock()
 		timer.Reset(s.NextSignal)
-		n.lock.Unlock()
 	} else {
 		// No timer is registered for this program, create it.
-		newTimer := time.AfterFunc(s.NextSignal, func() {
-			err := s.Notifier.Notify(n.msg(s))
-			if err != nil {
-				// Add context to the error message and call ErrorFunc.
-				err = errors.Wrapf(err, "error calling notifier: %T with signal: %+v", s.Notifier, s)
-				if n.ErrorFunc == nil {
-					defaultErrorFunc(err)
-				} else {
-					n.ErrorFunc(err)
-				}
-			}
-
-			// Call callback if set.
-			if s.CallbackFunc != nil {
-				signal := Signal(s)
-				s.CallbackFunc(&signal)
-			}
-		})
-		n.SetTimer(s.Name, newTimer)
+		n.SetTimer(s.Name, newTimer(s, n))
 	}
 
 	return nil
 }
 
-// msg creates message from validSignal that will be sent via notifier.
-func (n *Nanny) msg(s validSignal) notifier.Message {
-	name := "Nanny"
-	if n.Name != "" {
-		name = n.Name
-	}
-	return notifier.Message{
-		Nanny:      name,
-		Program:    s.Name,
-		NextSignal: s.NextSignal,
-		Meta:       s.Meta,
-	}
-}
-
 // GetTimer returns time.Timer when given program name is already registered or
 // nil.
-func (n *Nanny) GetTimer(name string) *time.Timer {
+func (n *Nanny) GetTimer(name string) *Timer {
 	value, ok := n.timers.GetStringKey(name)
 	if !ok {
 		return nil
 	}
-	return value.(*time.Timer)
+	return value.(*Timer)
 }
 
 // SetTimer sets new timer for given program name.
-func (n *Nanny) SetTimer(name string, timer *time.Timer) {
+func (n *Nanny) SetTimer(name string, timer *Timer) {
 	n.timers.Set(name, timer)
 }
