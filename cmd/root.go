@@ -29,6 +29,7 @@ type Config struct {
 	Email      Email
 	Sentry     Sentry
 	Twilio     Twilio
+	Slack      Slack
 }
 
 // Stderr notifier config.
@@ -63,6 +64,12 @@ type Twilio struct {
 	AppSID     string
 	From       string
 	To         string
+}
+
+// Slack config.
+type Slack struct {
+	Enabled    bool
+	WebhookURL string
 }
 
 var (
@@ -217,6 +224,13 @@ func makeNotifiers() (map[string]notifier.Notifier, error) {
 			config.Twilio.From,
 			config.Twilio.To,
 		)
+	}
+	if config.Slack.Enabled {
+		slackNotifier, err := notifier.NewSlack(config.Slack.WebhookURL)
+		if err != nil {
+			return nil, errors.Wrap(err, "unable to create slack notifier")
+		}
+		notifiers["slack"] = slackNotifier
 	}
 
 	return notifiers, nil
