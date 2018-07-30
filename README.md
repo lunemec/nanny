@@ -11,6 +11,7 @@ Nanny can notify you via these channels (for now):
 * email
 * sentry
 * sms (twilio)
+* slack (webhook)
 
 ## Example
 Run API server:
