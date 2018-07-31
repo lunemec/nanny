@@ -1,6 +1,6 @@
 Source: nanny
 Section: net
-Maintainer: Lukas Nemec 2 <lukas.nemec2@firma.seznam.cz>
+Maintainer: Lukas Nemec <lu.nemec@gmail.com>
 Build-Depends: debhelper (>= 8.0.0),
                dh-systemd,
                dh-golang,
