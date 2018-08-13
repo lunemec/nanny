@@ -44,7 +44,16 @@ make build
 
 Note that Nanny requires Go >= 1.8 to run.
 
-An alternative way of using Nanny is to run it inside a Docker container. You can build the Nanny docker using the command `make docker`. Afterwards the Nanny Docker container can be started using the provided example `docker-compose.yml` file.
+An alternative way of using Nanny is to run it inside a Docker container. You must build the Nanny Docker image first by using the command `make docker`. After that a Nanny Docker instance can be started like this:
+```bash
+docker run -d -v ${PWD}/nanny.toml:/nanny.toml -p 8080:8080 lunemec/nanny:latest
+```
+
+It's also possible to run Nanny using the provided Docker Compose file (see [docker-compose.yml]](docker-compose.yml)):
+```yml
+docker-compose up -d
+```
+**Note:** The provided `docker-compose.yml` file assumes that there is a `nanny.toml` file in the same directory as your `docker-compose.yml` file is placed. Feel free to update the volume definition according to your setup inside the Docker Compose file be editing the line `${PWD}/nanny.toml:/nanny.toml`.
 
 ## Configuration
 See nanny.toml for a configuration example. The fields are self-explanatory (I think). Please create an issue if anything does not make sense!
