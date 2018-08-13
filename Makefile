@@ -23,6 +23,7 @@ build:
 
 docker:
 	docker build -t nanny:$(VERSION) . --no-cache
+	docker tag nanny:$(VERSION) nanny:latest
 
 package: clean build
 	scripts/package.sh
