@@ -3,6 +3,7 @@ SHELL := /bin/bash
 export TESTS
 header = "  \e[1;34m%-30s\e[m \n"
 row = "\e[1mmake %-32s\e[m %-50s \n"
+VERSION := $(shell cat VERSION)
 
 all:
 	@printf $(header) "Build"
@@ -21,7 +22,7 @@ build:
 	govvv build -pkg nanny/pkg/version
 
 docker:
-	docker build -t nanny:0.3 . --no-cache
+	docker build -t nanny:$(VERSION) . --no-cache
 
 package: clean build
 	scripts/package.sh
