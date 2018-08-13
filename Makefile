@@ -22,7 +22,7 @@ build:
 	govvv build -pkg nanny/pkg/version
 
 docker:
-	docker build -t nanny:$(VERSION) . --no-cache
+	docker build -t nanny:$(VERSION) .
 	docker tag nanny:$(VERSION) nanny:latest
 
 package: clean build
