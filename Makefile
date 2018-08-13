@@ -16,7 +16,8 @@ all:
 	@printf $(row) "lint" "Run gometalinter (you have to install it)."
 
 build:
-	go build
+	go get github.com/ahmetb/govvv
+	govvv build -pkg nanny/pkg/version
 
 package: clean build
 	scripts/package.sh
