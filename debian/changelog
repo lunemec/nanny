@@ -1,3 +1,12 @@
+nanny (0.4.0) unreleased; urgency=medium
+
+  * Added Twilio SMS notifier.
+  * Read X-Forwarded-For Header before using req.RemoteAddr for name (ubergesundheit/read-forwarded-for-header).
+  * Fixed correct timeout message (ubergesundheit/notify-correct-timeout).
+  * Added Slack webhook (ubergesundheit/slack-notifier).
+  
+ -- Lukas Nemec <lu.nemec@gmail.com>  Mon, 13 Aug 2018 13:11:15 +0000
+
 nanny (0.3) stable; urgency=medium
 
   * IP address is appended to signal name, so it doesn't need to be

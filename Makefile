@@ -17,7 +17,8 @@ all:
 	@printf $(row) "lint" "Run gometalinter (you have to install it)."
 
 build:
-	go build
+	go get github.com/ahmetb/govvv
+	govvv build -pkg nanny/pkg/version
 
 docker:
 	docker build -t nanny:0.3 . --no-cache
