@@ -7,6 +7,7 @@ row = "\e[1mmake %-32s\e[m %-50s \n"
 all:
 	@printf $(header) "Build"
 	@printf $(row) "build" "Build production binary."
+	@printf $(row) "docker" "Build a nanny Docker image."
 	@printf $(row) "package" "Build and create .tar.gz."
 	@printf $(row) "clean" "Clean from build artefacts."
 	@printf $(header) "Dev"
@@ -17,6 +18,9 @@ all:
 
 build:
 	go build
+
+docker:
+	docker build -t nanny:0.3 . --no-cache
 
 package: clean build
 	scripts/package.sh
