@@ -11,4 +11,4 @@ services:
       # Uncomment to enable debugging messages:
       LOGXI: '*'
     volumes:
-      - ${PWD}/nanny.toml:/nanny.toml
+      - ${PWD}/nanny.toml:/opt/nanny.toml
