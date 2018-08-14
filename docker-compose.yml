@@ -1,0 +1,14 @@
+version: "3.6"
+
+services:
+  service:
+    image: nanny:latest
+    restart: always
+    ports:
+      - 8080:8080
+    environment:
+      NANNY_ADDR: 0.0.0.0:8080
+      # Uncomment to enable debugging messages:
+      LOGXI: '*'
+    volumes:
+      - ${PWD}/nanny.toml:/opt/nanny.toml
