@@ -7,12 +7,13 @@ COPY ./ /go/src/nanny
 WORKDIR /go/src/nanny
 RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -a -tags netgo -ldflags '-w -extldflags "-static"' -o /nanny .
 
-#FROM scratch
 FROM alpine:3.8
 
 RUN adduser -s /sbin/nologin -H -u 1000 -D nanny
 RUN mkdir -p /opt
 RUN chown nanny:nanny /opt
+
+RUN apk add --no-cache ca-certificates
 
 WORKDIR /opt
 
