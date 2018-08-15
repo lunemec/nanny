@@ -323,3 +323,46 @@ func TestNannyTimer(t *testing.T) {
 		t.Errorf("dummy msg should not contain 2s after NextSignal time expired: %v\n", dummyMsg)
 	}
 }
+
+func TestChangingMeta(t *testing.T) {
+	n := nanny.Nanny{Name: "test nanny changing meta"}
+	dummy := &DummyNotifier{}
+	signal := nanny.Signal{
+		Name:         "test changing meta",
+		Notifier:     dummy,
+		NextSignal:   time.Duration(1) * time.Second,
+		CallbackFunc: func(s *nanny.Signal) {},
+		Meta: map[string]string{
+			"ping": "original-message",
+		},
+	}
+	err := n.Handle(signal)
+	if err != nil {
+		t.Errorf("n.Signal should not return error, got: %v\n", err)
+	}
+
+	// Call handle with different meta again to simulate program calling before notification.
+	err = n.Handle(nanny.Signal{
+		Name:         "test changing meta",
+		Notifier:     dummy,
+		NextSignal:   time.Duration(1) * time.Second,
+		CallbackFunc: func(s *nanny.Signal) {},
+		Meta: map[string]string{
+			"ping": "updated-message",
+		},
+	})
+	if err != nil {
+		t.Errorf("n.Signal should not return error, got: %v\n", err)
+	}
+	// After 1s, DummyNotifier should return error.
+	time.Sleep(time.Duration(1)*time.Second + time.Duration(100)*time.Millisecond)
+	dummyMsg := dummy.NotifyMsg()
+	if dummyMsg.Program == "" {
+		t.Errorf("dummy msg should not be empty after NextSignal time expired: %v\n", dummyMsg)
+	}
+
+	meta := fmt.Sprintf("%v", dummyMsg.Meta)
+	if strings.Contains(meta, "original-message") {
+		t.Errorf("dummy msg should not contain \"original-message\" after NextSignal time expired: %v\n", dummyMsg)
+	}
+}

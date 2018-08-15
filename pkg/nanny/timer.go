@@ -24,12 +24,13 @@ func newTimer(s validSignal, nanny *Nanny) *Timer {
 }
 
 // Reset updates the nannyTimers signal to reset the timer
-func (nt *Timer) Reset(d time.Duration) {
+func (nt *Timer) Reset(vs validSignal) {
 	nt.lock.Lock()
 	defer nt.lock.Unlock()
 
-	nt.signal.NextSignal = d
-	nt.timer.Reset(d)
+	nt.signal.NextSignal = vs.NextSignal
+	nt.signal.Meta = vs.Meta
+	nt.timer.Reset(vs.NextSignal)
 }
 
 func (nt *Timer) onExpire() {
