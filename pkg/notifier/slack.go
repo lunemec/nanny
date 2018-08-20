@@ -53,3 +53,7 @@ func (s *slackNotifier) Notify(msg Message) error {
 	}
 	return nil
 }
+
+func (s *slackNotifier) String() string {
+	return "slack"
+}

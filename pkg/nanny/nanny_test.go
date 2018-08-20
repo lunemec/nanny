@@ -26,6 +26,10 @@ func (d *DummyNotifier) Notify(msg notifier.Message) error {
 	return nil
 }
 
+func (d *DummyNotifier) String() string {
+	return "dummy"
+}
+
 // NotifyMsg retrieves `msg` argument from previous `Notify` call. For testing
 // purposes only.
 func (d *DummyNotifier) NotifyMsg() notifier.Message {
@@ -40,6 +44,10 @@ type DummyNotifierWithError struct{}
 // Notify satisfies Notifier interface.
 func (d *DummyNotifierWithError) Notify(msg notifier.Message) error {
 	return fmt.Errorf("error")
+}
+
+func (d *DummyNotifierWithError) String() string {
+	return "dummy with error"
 }
 
 func TestNanny(t *testing.T) {

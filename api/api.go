@@ -152,6 +152,7 @@ func router(nanny *nanny.Nanny, notifiers notifiers, store storage.Storage) *mux
 	apiRouter.Handle("/version", panicWrap(headerWrap(errWrap(versionHandler))))
 	// In case of future API changes, nanny will support older versions of API.
 	v1Router := apiRouter.PathPrefix("/v1").Subrouter()
+	v1Router.Handle("/signals", panicWrap(headerWrap(errWrap(depWrap(nanny, notifiers, store, getSignalsHandler))))).Methods("GET")
 	v1Router.Handle("/signal", panicWrap(headerWrap(errWrap(depWrap(nanny, notifiers, store, signalHandler))))).Methods("POST")
 
 	return router
@@ -282,6 +283,28 @@ func signalHandler(n *nanny.Nanny, notifiers notifiers, store storage.Storage, w
 	// work.
 	if err != nil {
 		log.Error("Error saving signal to persistent storage", "err", err)
+	}
+	return nil
+}
+
+func getSignalsHandler(n *nanny.Nanny, notifiers notifiers, store storage.Storage, w http.ResponseWriter, req *http.Request) error {
+	w.Header().Set("Content-Type", "application/json")
+
+	signals := n.GetTimers()
+
+	err := json.NewEncoder(w).Encode(&struct {
+		NannyName string         `json:"nanny_name"`
+		Programs  []*nanny.Timer `json:"programs"`
+	}{
+		NannyName: n.Name,
+		Programs:  signals,
+	})
+
+	if err != nil {
+		return &httpError{
+			StatusCode: http.StatusInternalServerError,
+			Err:        err,
+		}
 	}
 	return nil
 }

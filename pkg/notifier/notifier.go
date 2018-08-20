@@ -8,6 +8,7 @@ import (
 // Notifier interface is used by Nanny to notify user on different outputs/services.
 type Notifier interface {
 	Notify(Message) error
+	String() string
 }
 
 // Message is used with Notifier's Notify to customise messages sent via different

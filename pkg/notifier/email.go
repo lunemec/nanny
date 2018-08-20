@@ -37,3 +37,8 @@ func (n *Email) Notify(msg Message) error {
 	}
 	return nil
 }
+
+// MarshalJSON marshals the Email notifier into its name "email"
+func (n *Email) String() string {
+	return "email"
+}

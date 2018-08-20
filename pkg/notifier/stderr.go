@@ -17,3 +17,8 @@ func (n *StdErr) Notify(msg Message) error {
 	_, err := os.Stderr.WriteString(text)
 	return errors.Wrap(err, "unable to notify via stderr")
 }
+
+// MarshalJSON marshals the stderr notifier into a "stderr" string
+func (n *StdErr) String() string {
+	return "stderr"
+}

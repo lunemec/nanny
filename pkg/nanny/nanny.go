@@ -104,3 +104,14 @@ func (n *Nanny) GetTimer(name string) *Timer {
 func (n *Nanny) SetTimer(name string, timer *Timer) {
 	n.timers.Set(name, timer)
 }
+
+// GetTimers returns a slice of currently open timers
+func (n *Nanny) GetTimers() []*Timer {
+	timers := make([]*Timer, n.timers.Len())
+	index := 0
+	for timer := range n.timers.Iter() {
+		timers[index] = timer.Value.(*Timer)
+		index = index + 1
+	}
+	return timers
+}
