@@ -78,12 +78,12 @@ NANNY_NAME="custom name" NANNY_ADDR="localhost:9090" LOGXI=* ./nanny
   /api/version
 
 * **Method:**
-  
+
   `GET`
-  
+
 * **Success Response:**
-  
-  * **Code:** 200  
+
+  * **Code:** 200
     **Content:** `Nanny vX.Y`
 
 ### Signal
@@ -94,9 +94,9 @@ NANNY_NAME="custom name" NANNY_ADDR="localhost:9090" LOGXI=* ./nanny
   /api/v1/signal
 
 * **Method:**
-  
+
   `POST`
-  
+
 * **Data Params**
   ```js
   {
@@ -110,18 +110,54 @@ NANNY_NAME="custom name" NANNY_ADDR="localhost:9090" LOGXI=* ./nanny
   ```
 
 * **Success Response:**
-  
-  * **Code:** 200  
-    **Content:** 
- 
+
+  * **Code:** 200
+    **Content:**
+
 * **Error Response:**
-  * **Code:** 400 Bad Request  
+  * **Code:** 400 Bad Request
     **Content:** `{"status_code":400,"error":"unable to find notifier: "}`
 
   OR
 
-  * **Code:** 500 Internal Server Error  
+  * **Code:** 500 Internal Server Error
     **Content:** `Message describing error, may be JSON or may be text.`
+
+### Current signals
+  Return current signals as JSON.
+
+* **URL**
+
+  /api/v1/signals
+
+* **Method:**
+
+  `GET`
+
+* **Success Response:**
+
+  * **Code:** 200
+    **Content:**
+    ```
+    {
+      "nanny_name": "Nanny",
+      "signals": [
+        {
+          "name": "my awesome program",
+          "notifier": "stderr",
+          "next_signal":"2018-08-21T10:00:15+02:00",
+          "meta": {
+            "current-step": "loading"
+          }
+        },
+        {
+          "name": "my awesome program without meta",
+          "notifier": "email",
+          "next_signal":"2018-08-21T09:45:00+02:00"
+        }
+      ]
+    }
+    ```
 
 ## Monitoring nanny
 You can use one Nanny to monitor another Nanny or create a monitored Nanny-pair.

@@ -294,7 +294,7 @@ func getSignalsHandler(n *nanny.Nanny, notifiers notifiers, store storage.Storag
 
 	err := json.NewEncoder(w).Encode(&struct {
 		NannyName string         `json:"nanny_name"`
-		Programs  []*nanny.Timer `json:"programs"`
+		Programs  []*nanny.Timer `json:"signals"`
 	}{
 		NannyName: n.Name,
 		Programs:  signals,
