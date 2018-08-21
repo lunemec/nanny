@@ -1,6 +1,7 @@
 package nanny_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -372,5 +373,99 @@ func TestChangingMeta(t *testing.T) {
 	meta := fmt.Sprintf("%v", dummyMsg.Meta)
 	if strings.Contains(meta, "original-message") {
 		t.Errorf("dummy msg should not contain \"original-message\" after NextSignal time expired: %v\n", dummyMsg)
+	}
+}
+
+func TestGetTimers(t *testing.T) {
+	n := nanny.Nanny{Name: "test nanny GetTimers"}
+	dummy := &DummyNotifier{}
+	err := n.Handle(nanny.Signal{
+		Name:         "test signal 1",
+		Notifier:     dummy,
+		NextSignal:   time.Duration(1) * time.Second,
+		CallbackFunc: func(s *nanny.Signal) {},
+		Meta:         map[string]string{},
+	})
+	if err != nil {
+		t.Errorf("n.Signal should not return error, got: %v\n", err)
+	}
+	err = n.Handle(nanny.Signal{
+		Name:         "test signal 2",
+		Notifier:     dummy,
+		NextSignal:   time.Duration(1) * time.Hour,
+		CallbackFunc: func(s *nanny.Signal) {},
+		Meta:         map[string]string{},
+	})
+	if err != nil {
+		t.Errorf("n.Signal should not return error, got: %v\n", err)
+	}
+	timers := n.GetTimers()
+	if len(timers) != 2 {
+		t.Errorf("n.GetTimers should return 2 timers, got: %v\n", len(timers))
+	}
+}
+func TestTimerMarshalJSON(t *testing.T) {
+	n := nanny.Nanny{Name: "test timer MarshalJSON"}
+	dummy := &DummyNotifier{}
+	signalName := "test_signal_json_name"
+	err := n.Handle(nanny.Signal{
+		Name:         signalName,
+		Notifier:     dummy,
+		NextSignal:   time.Duration(1) * time.Second,
+		CallbackFunc: func(s *nanny.Signal) {},
+		Meta:         map[string]string{},
+	})
+	if err != nil {
+		t.Errorf("n.Signal should not return error, got: %v\n", err)
+	}
+	timer := n.GetTimer(signalName)
+	if timer == nil {
+		t.Error("expected timer, got nil")
+	}
+
+	jsonBytes, err := json.Marshal(timer)
+	if err != nil {
+		t.Errorf("json.Marshal should not return error, got: %v\n", err)
+	}
+
+	if strings.Contains(string(jsonBytes), signalName) == false {
+		t.Error("expected json representation to contain the signals name")
+	}
+
+	if strings.Contains(string(jsonBytes), "meta") {
+		t.Errorf("json representation should not contain \"meta\": %v\n", string(jsonBytes))
+	}
+
+	signalName = "test signal json name with meta"
+	err = n.Handle(nanny.Signal{
+		Name:         signalName,
+		Notifier:     dummy,
+		NextSignal:   time.Duration(1) * time.Second,
+		CallbackFunc: func(s *nanny.Signal) {},
+		Meta:         map[string]string{"key": "value"},
+	})
+	if err != nil {
+		t.Errorf("n.Signal should not return error, got: %v\n", err)
+	}
+	timer = n.GetTimer(signalName)
+	if timer == nil {
+		t.Error("expected timer, got nil")
+	}
+
+	jsonBytes, err = json.Marshal(timer)
+	if err != nil {
+		t.Errorf("json.Marshal should not return error, got: %v\n", err)
+	}
+
+	if strings.Contains(string(jsonBytes), "meta") == false {
+		t.Errorf("json representation should contain \"meta\": %v\n", string(jsonBytes))
+	}
+
+	if strings.Contains(string(jsonBytes), "key") == false {
+		t.Error("expected json representation to contain the \"key\"")
+	}
+
+	if strings.Contains(string(jsonBytes), "value") == false {
+		t.Error("expected json representation to contain the \"value\"")
 	}
 }
