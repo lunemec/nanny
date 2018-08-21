@@ -449,7 +449,7 @@ func TestTimerMarshalJSONMetaNotPresent(t *testing.T) {
 		t.Errorf("json.Marshal should not return error, got: %v\n", err)
 	}
 
-	if strings.Contains(string(jsonBytes), "meta") {
+	if strings.Contains(string(jsonBytes), "\"meta\":") {
 		t.Error("expected json representation to not contain \"meta\"")
 	}
 }
@@ -469,7 +469,7 @@ func TestTimerMarshalJSONMeta(t *testing.T) {
 	}
 	jsonString := string(jsonBytes)
 
-	for _, required := range []string{"meta", "key", "value"} {
+	for _, required := range []string{"\"meta\":", "\"key\":\"value\""} {
 		if strings.Contains(jsonString, required) == false {
 			t.Errorf("expected json representation to contain \"%s\"", required)
 		}
