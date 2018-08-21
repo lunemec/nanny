@@ -48,6 +48,7 @@ func (nt *Timer) Reset(vs validSignal) {
 
 	nt.signal.NextSignal = vs.NextSignal
 	nt.signal.Meta = vs.Meta
+	nt.end = time.Now().Add(vs.NextSignal)
 	nt.timer.Reset(vs.NextSignal)
 }
 

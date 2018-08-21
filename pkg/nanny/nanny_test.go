@@ -469,3 +469,93 @@ func TestTimerMarshalJSON(t *testing.T) {
 		t.Error("expected json representation to contain the \"value\"")
 	}
 }
+
+func TestTimerMarshalJSONNextSignal(t *testing.T) {
+	var jsonSignal struct {
+		NextSignal string `json:"next_signal"`
+	}
+
+	n := nanny.Nanny{Name: "test timer MarshalJSON next signal"}
+	dummy := &DummyNotifier{}
+
+	signalName := "test_signal_json_next_signal"
+	dur := time.Duration(3) * time.Second
+	expectedEnd := time.Now().Add(dur)
+
+	err := n.Handle(nanny.Signal{
+		Name:         signalName,
+		Notifier:     dummy,
+		NextSignal:   dur,
+		CallbackFunc: func(s *nanny.Signal) {},
+		Meta:         map[string]string{},
+	})
+	if err != nil {
+		t.Errorf("n.Signal should not return error, got: %v\n", err)
+	}
+	timer := n.GetTimer(signalName)
+	if timer == nil {
+		t.Error("expected timer, got nil")
+	}
+
+	jsonBytes, err := json.Marshal(timer)
+	if err != nil {
+		t.Errorf("json.Marshal should not return error, got: %v\n", err)
+	}
+
+	// Unmarshal the jsonBytes
+	err = json.Unmarshal(jsonBytes, &jsonSignal)
+	if err != nil {
+		t.Errorf("Expected unmarshalling without error but got error, got: %v\n", err)
+	}
+	parsedNextSignal, err := time.Parse(time.RFC3339, jsonSignal.NextSignal)
+	if err != nil {
+		t.Errorf("Expected time.Parse without error but got error, got: %v\n", err)
+	}
+
+	diff := expectedEnd.Sub(parsedNextSignal)
+
+	if diff > time.Second {
+		t.Errorf("Expected next_signal in json to be less than 1s, got: %v\n", diff)
+	}
+
+	time.Sleep(time.Duration(2) * time.Second)
+
+	expectedEnd = time.Now().Add(dur)
+
+	err = n.Handle(nanny.Signal{
+		Name:         signalName,
+		Notifier:     dummy,
+		NextSignal:   dur,
+		CallbackFunc: func(s *nanny.Signal) {},
+		Meta:         map[string]string{},
+	})
+	if err != nil {
+		t.Errorf("n.Signal should not return error, got: %v\n", err)
+	}
+	timer = n.GetTimer(signalName)
+	if timer == nil {
+		t.Error("expected timer, got nil")
+	}
+
+	jsonBytes, err = json.Marshal(timer)
+	if err != nil {
+		t.Errorf("json.Marshal should not return error, got: %v\n", err)
+	}
+
+	// Unmarshal the jsonBytes
+	err = json.Unmarshal(jsonBytes, &jsonSignal)
+	if err != nil {
+		t.Errorf("Expected unmarshalling without error but got error, got: %v\n", err)
+	}
+	parsedNextSignal, err = time.Parse(time.RFC3339, jsonSignal.NextSignal)
+	if err != nil {
+		t.Errorf("Expected time.Parse without error but got error, got: %v\n", err)
+	}
+
+	diff = expectedEnd.Sub(parsedNextSignal)
+
+	if diff > time.Second {
+		t.Errorf("Expected next_signal in json to be less than 1s, got: %v\n", diff)
+	}
+
+}
