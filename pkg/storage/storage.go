@@ -16,8 +16,8 @@ type Storage interface {
 
 // Signal represents stored signal information
 type Signal struct {
-	Name       string            `xorm:"pk" json:"name"`
-	Notifier   string            `json:"notifier"`
-	NextSignal time.Time         `json:"next_signal"`
-	Meta       map[string]string `json:"meta,omitempty"`
+	Name       string `xorm:"pk"`
+	Notifier   string
+	NextSignal time.Time
+	Meta       map[string]string
 }
