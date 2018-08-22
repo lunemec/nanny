@@ -1,6 +1,7 @@
 package nanny
 
 import (
+	"encoding/json"
 	"nanny/pkg/notifier"
 	"sync"
 	"time"
@@ -13,12 +14,29 @@ type Timer struct {
 	signal validSignal
 	timer  *time.Timer
 	nanny  *Nanny
+	end    time.Time
 
 	lock sync.Mutex
 }
 
+// MarshalJSON marshals a nanny.Timer into JSON. Fields name, notifier, next_signal and meta are exported
+func (nt *Timer) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&struct {
+		Name       string            `json:"name"`
+		Notifier   string            `json:"notifier"`
+		NextSignal string            `json:"next_signal"`
+		Meta       map[string]string `json:"meta,omitempty"`
+	}{
+		Name:       nt.signal.Name,
+		Notifier:   nt.signal.Notifier.String(),
+		NextSignal: nt.end.Format(time.RFC3339),
+		Meta:       nt.signal.Meta,
+	})
+}
+
 func newTimer(s validSignal, nanny *Nanny) *Timer {
 	timer := &Timer{signal: s, nanny: nanny}
+	timer.end = time.Now().Add(timer.signal.NextSignal)
 	timer.timer = time.AfterFunc(timer.signal.NextSignal, timer.onExpire)
 	return timer
 }
@@ -30,6 +48,7 @@ func (nt *Timer) Reset(vs validSignal) {
 
 	nt.signal.NextSignal = vs.NextSignal
 	nt.signal.Meta = vs.Meta
+	nt.end = time.Now().Add(vs.NextSignal)
 	nt.timer.Reset(vs.NextSignal)
 }
 

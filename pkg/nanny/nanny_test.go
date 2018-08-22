@@ -1,6 +1,7 @@
 package nanny_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -26,6 +27,10 @@ func (d *DummyNotifier) Notify(msg notifier.Message) error {
 	return nil
 }
 
+func (d *DummyNotifier) String() string {
+	return "dummy"
+}
+
 // NotifyMsg retrieves `msg` argument from previous `Notify` call. For testing
 // purposes only.
 func (d *DummyNotifier) NotifyMsg() notifier.Message {
@@ -40,6 +45,26 @@ type DummyNotifierWithError struct{}
 // Notify satisfies Notifier interface.
 func (d *DummyNotifierWithError) Notify(msg notifier.Message) error {
 	return fmt.Errorf("error")
+}
+
+func (d *DummyNotifierWithError) String() string {
+	return "dummy with error"
+}
+
+func createTimer(nannyName, signalName string, duration time.Duration, meta map[string]string) *nanny.Timer {
+	n := nanny.Nanny{Name: nannyName}
+	dummy := &DummyNotifier{}
+	err := n.Handle(nanny.Signal{
+		Name:         signalName,
+		Notifier:     dummy,
+		NextSignal:   duration,
+		CallbackFunc: func(s *nanny.Signal) {},
+		Meta:         meta,
+	})
+	if err != nil {
+		return nil
+	}
+	return n.GetTimer(signalName)
 }
 
 func TestNanny(t *testing.T) {
@@ -364,5 +389,154 @@ func TestChangingMeta(t *testing.T) {
 	meta := fmt.Sprintf("%v", dummyMsg.Meta)
 	if strings.Contains(meta, "original-message") {
 		t.Errorf("dummy msg should not contain \"original-message\" after NextSignal time expired: %v\n", dummyMsg)
+	}
+}
+
+func TestGetTimers(t *testing.T) {
+	n := nanny.Nanny{Name: "test nanny GetTimers"}
+	dummy := &DummyNotifier{}
+	err := n.Handle(nanny.Signal{
+		Name:         "test signal 1",
+		Notifier:     dummy,
+		NextSignal:   time.Duration(1) * time.Second,
+		CallbackFunc: func(s *nanny.Signal) {},
+		Meta:         map[string]string{},
+	})
+	if err != nil {
+		t.Errorf("n.Signal should not return error, got: %v\n", err)
+	}
+	err = n.Handle(nanny.Signal{
+		Name:         "test signal 2",
+		Notifier:     dummy,
+		NextSignal:   time.Duration(1) * time.Hour,
+		CallbackFunc: func(s *nanny.Signal) {},
+		Meta:         map[string]string{},
+	})
+	if err != nil {
+		t.Errorf("n.Signal should not return error, got: %v\n", err)
+	}
+	timers := n.GetTimers()
+	if len(timers) != 2 {
+		t.Errorf("n.GetTimers should return 2 timers, got: %v\n", len(timers))
+	}
+}
+func TestTimerMarshalJSONName(t *testing.T) {
+	name := "test MarshalJSON name"
+	timer := createTimer(name, name, time.Second, map[string]string{})
+	if timer == nil {
+		t.Error("expected timer, got nil")
+	}
+
+	jsonBytes, err := json.Marshal(timer)
+	if err != nil {
+		t.Errorf("json.Marshal should not return error, got: %v\n", err)
+	}
+
+	if strings.Contains(string(jsonBytes), name) == false {
+		t.Error("expected json representation to contain the signals name")
+	}
+}
+
+func TestTimerMarshalJSONMetaNotPresent(t *testing.T) {
+	name := "test MarshalJSON meta not present"
+	timer := createTimer(name, name, time.Second, map[string]string{})
+	if timer == nil {
+		t.Error("expected timer, got nil")
+	}
+
+	jsonBytes, err := json.Marshal(timer)
+	if err != nil {
+		t.Errorf("json.Marshal should not return error, got: %v\n", err)
+	}
+
+	if strings.Contains(string(jsonBytes), "\"meta\":") {
+		t.Error("expected json representation to not contain \"meta\"")
+	}
+}
+
+func TestTimerMarshalJSONMeta(t *testing.T) {
+	name := "test MarshalJSON meta"
+	timer := createTimer(name, name, time.Second, map[string]string{
+		"key": "value",
+	})
+	if timer == nil {
+		t.Error("expected timer, got nil")
+	}
+
+	jsonBytes, err := json.Marshal(timer)
+	if err != nil {
+		t.Errorf("json.Marshal should not return error, got: %v\n", err)
+	}
+	jsonString := string(jsonBytes)
+
+	for _, required := range []string{"\"meta\":", "\"key\":\"value\""} {
+		if strings.Contains(jsonString, required) == false {
+			t.Errorf("expected json representation to contain \"%s\"", required)
+		}
+	}
+}
+
+func TestTimerMarshalJSONNextSignal(t *testing.T) {
+	var jsonSignal struct {
+		NextSignal string `json:"next_signal"`
+	}
+
+	// Test setup
+	n := nanny.Nanny{Name: "test timer MarshalJSON next signal"}
+	dummy := &DummyNotifier{}
+
+	signalName := "test_signal_json_next_signal"
+	dur := time.Duration(3) * time.Second
+	expectedEnd := time.Now().Add(dur)
+
+	n.Handle(nanny.Signal{
+		Name:       signalName,
+		Notifier:   dummy,
+		NextSignal: dur,
+	})
+
+	timer := n.GetTimer(signalName)
+
+	jsonBytes, _ := json.Marshal(timer)
+
+	// Unmarshal the jsonBytes
+	_ = json.Unmarshal(jsonBytes, &jsonSignal)
+	parsedNextSignal, err := time.Parse(time.RFC3339, jsonSignal.NextSignal)
+	if err != nil {
+		t.Errorf("Expected time.Parse without error but got error, got: %v\n", err)
+	}
+
+	diff := expectedEnd.Sub(parsedNextSignal)
+
+	if diff > time.Second {
+		t.Errorf("Expected next_signal in json to be less than 1s, got: %v\n", diff)
+	}
+
+	// Sleep some time to check subsequent calls
+	time.Sleep(time.Duration(2) * time.Second)
+
+	expectedEnd = time.Now().Add(dur)
+
+	n.Handle(nanny.Signal{
+		Name:       signalName,
+		Notifier:   dummy,
+		NextSignal: dur,
+	})
+	timer = n.GetTimer(signalName)
+
+	jsonBytes, _ = json.Marshal(timer)
+
+	// Unmarshal the jsonBytes
+	json.Unmarshal(jsonBytes, &jsonSignal)
+	parsedNextSignal, err = time.Parse(time.RFC3339, jsonSignal.NextSignal)
+	if err != nil {
+		t.Errorf("Expected time.Parse without error but got error, got: %v\n", err)
+	}
+
+	// check if the returned next_signal is not stale
+	diff = expectedEnd.Sub(parsedNextSignal)
+
+	if diff > time.Second {
+		t.Errorf("Expected next_signal in json to be less than 1s, got: %v\n", diff)
 	}
 }

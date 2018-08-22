@@ -40,3 +40,7 @@ func (n *twilio) Notify(msg Message) error {
 	}
 	return nil
 }
+
+func (n *twilio) String() string {
+	return "twilio"
+}

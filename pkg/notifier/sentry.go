@@ -24,3 +24,7 @@ func (n *sentry) Notify(msg Message) error {
 	n.cli.CaptureMessageAndWait(msg.Format(), msg.Meta)
 	return nil
 }
+
+func (n *sentry) String() string {
+	return "sentry"
+}
