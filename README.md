@@ -112,7 +112,7 @@ NANNY_NAME="custom name" NANNY_ADDR="localhost:9090" LOGXI=* ./nanny
 * **Success Response:**
 
   * **Code:** 200
-    **Content:**
+    **Content:** `{"status_code":200, "status":"OK"}`
 
 * **Error Response:**
   * **Code:** 400 Bad Request

@@ -432,7 +432,7 @@ func TestTimerMarshalJSONName(t *testing.T) {
 		t.Errorf("json.Marshal should not return error, got: %v\n", err)
 	}
 
-	if strings.Contains(string(jsonBytes), name) == false {
+	if !strings.Contains(string(jsonBytes), name) {
 		t.Error("expected json representation to contain the signals name")
 	}
 }
@@ -470,7 +470,7 @@ func TestTimerMarshalJSONMeta(t *testing.T) {
 	jsonString := string(jsonBytes)
 
 	for _, required := range []string{"\"meta\":", "\"key\":\"value\""} {
-		if strings.Contains(jsonString, required) == false {
+		if !strings.Contains(jsonString, required) {
 			t.Errorf("expected json representation to contain \"%s\"", required)
 		}
 	}

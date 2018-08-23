@@ -65,6 +65,10 @@ type handler func(http.ResponseWriter, *http.Request) error
 type handlerWithDeps func(*nanny.Nanny, notifiers, storage.Storage, http.ResponseWriter, *http.Request) error
 type notifiers map[string]notifier.Notifier
 
+// routes contain map of URLs -> Names of routes. This hashmap is created and written to
+// only once *before* the server starts. DO NOT WRITE TO IT!
+var routes = map[string]string{}
+
 // Handler returns http.Handler and error. This way we can customise
 // http.Server and just pass in our handlers.
 func (a *Server) Handler() (http.Handler, error) {
@@ -149,91 +153,34 @@ func router(nanny *nanny.Nanny, notifiers notifiers, store storage.Storage) *mux
 	router := mux.NewRouter()
 	// Clarify this is API.
 	apiRouter := router.PathPrefix("/api").Subrouter()
-	apiRouter.Handle("/version", panicWrap(headerWrap(errWrap(versionHandler))))
+	apiRouter.Handle("/", panicWrap(headerWrap(errWrap(listEndpoints)))).Name("List all available API endpoints.").Methods("GET")
+	apiRouter.Handle("/version", panicWrap(headerWrap(errWrap(versionHandler)))).Name("Nanny version.").Methods("GET")
 	// In case of future API changes, nanny will support older versions of API.
 	v1Router := apiRouter.PathPrefix("/v1").Subrouter()
-	v1Router.Handle("/signals", panicWrap(headerWrap(errWrap(depWrap(nanny, notifiers, store, getSignalsHandler))))).Methods("GET")
-	v1Router.Handle("/signal", panicWrap(headerWrap(errWrap(depWrap(nanny, notifiers, store, signalHandler))))).Methods("POST")
+	v1Router.Handle("/signals", panicWrap(headerWrap(errWrap(depWrap(nanny, notifiers, store, getSignalsHandler))))).Name("Show all registered signals.").Methods("GET")
+	v1Router.Handle("/signal", panicWrap(headerWrap(errWrap(depWrap(nanny, notifiers, store, signalHandler))))).Name("Register new signal.").Methods("POST")
+
+	err := router.Walk(saveRoutes)
+	if err != nil {
+		log.Error("router.Walk doesnt want to walk", "err", err)
+	}
 
 	return router
 }
 
-// panicWrap recovers from runtime panics, logs and returns message to user.
-func panicWrap(handler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var err error
-		defer func() {
-			r := recover()
-			if r != nil {
-				switch t := r.(type) {
-				case string:
-					err = errors.New(t)
-				case error:
-					err = t
-				default:
-					err = errors.New("Unknown error")
-				}
-				log.Error("Panic recovered", "err", err)
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
-		}()
-		handler.ServeHTTP(w, r)
-	})
-}
-
-// headerWrap only sets Nanny as server, may contain more in future.
-func headerWrap(handler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Server", "Nanny")
-		handler.ServeHTTP(w, r)
-	})
-}
-
-// errWrap allows us to have http.Handler that can return error which is handled
-// here and encoded as JSON error with correct http status code.
-func errWrap(handler handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		err := handler(w, r)
-		if err != nil {
-			var e Error
-
-			switch v := err.(type) {
-			case *httpError:
-				w.WriteHeader(v.StatusCode)
-				e = Error{
-					StatusCode: v.StatusCode,
-					Message:    v.Error(),
-				}
-			default:
-				w.WriteHeader(http.StatusInternalServerError)
-				e = Error{
-					StatusCode: http.StatusInternalServerError,
-					Message:    v.Error(),
-				}
-			}
-			w.Header().Set("Content-Type", "application/json")
-
-			out, err := json.Marshal(e)
-			if err != nil {
-				log.Error("Error returning JSON error", "err", err)
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			_, err = w.Write(out)
-			if err != nil {
-				log.Error("Error writing response with JSON error", "err", err)
-				return
-			}
-			return
-		}
-	})
-}
-
-// depWrap adds notifier dependencies to handler.
-func depWrap(nanny *nanny.Nanny, notifiers notifiers, storage storage.Storage, handler handlerWithDeps) handler {
-	return func(w http.ResponseWriter, r *http.Request) error {
-		return handler(nanny, notifiers, storage, w, r)
+// listEndpoints is a handler that reads routes variable. It contains all the URL paths
+// available to Nanny.
+func listEndpoints(w http.ResponseWriter, req *http.Request) error {
+	js, err := json.Marshal(routes)
+	if err != nil {
+		return errors.Wrap(err, "unable to marshal url routes to json")
 	}
+	w.Header().Set("Content-Type", "application/json")
+	_, err = w.Write(js)
+	if err != nil {
+		return errors.Wrap(err, "unable to write output")
+	}
+	return nil
 }
 
 // versionHandler simply returns version of this nanny.
@@ -245,6 +192,7 @@ func versionHandler(w http.ResponseWriter, req *http.Request) error {
 
 // signalHandler handles incomming register/ping signal from a source.
 func signalHandler(n *nanny.Nanny, notifiers notifiers, store storage.Storage, w http.ResponseWriter, req *http.Request) error {
+	w.Header().Set("Content-Type", "application/json")
 	var signal Signal
 
 	dec := json.NewDecoder(req.Body)
@@ -284,6 +232,10 @@ func signalHandler(n *nanny.Nanny, notifiers notifiers, store storage.Storage, w
 	if err != nil {
 		log.Error("Error saving signal to persistent storage", "err", err)
 	}
+	// When everything is OK, we should return JSON with "status_code": 200, and
+	// message "status": "OK".
+	// nolint: errcheck
+	w.Write([]byte(`{"status_code":200, "status":"OK"}`))
 	return nil
 }
 
@@ -358,6 +310,15 @@ func constructDuration(nextSignal string) time.Duration {
 	}
 
 	return d
+}
+
+func saveRoutes(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
+	path, err := route.GetPathTemplate()
+	if err != nil {
+		return errors.Wrap(err, "unable to save route")
+	}
+	routes[path] = route.GetName()
+	return nil
 }
 
 // Close closes any io.Closer and checks for error, which will be logged.
