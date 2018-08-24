@@ -164,3 +164,19 @@ func TestAPISignalAcceptsInt(t *testing.T) {
 
 // TODO
 func TestPersistence(t *testing.T) {}
+
+func TestConstructName(t *testing.T) {
+	signalName := "test_name"
+	r, _ := http.NewRequest("POST", "/ignored/anyway", nil)
+	r.RemoteAddr = "10.11.12.13:8089"
+
+	assert.Equal(t, constructName(signalName, r), "test_name@10.11.12.13")
+
+	r.Header = map[string][]string{"X-Forwarded-For": {"14.15.16.17"}}
+
+	assert.Equal(t, constructName(signalName, r), "test_name@14.15.16.17")
+
+	r.Header["X-Dont-Modify-Name"] = []string{"true"}
+
+	assert.Equal(t, constructName(signalName, r), signalName)
+}

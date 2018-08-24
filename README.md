@@ -97,6 +97,10 @@ NANNY_NAME="custom name" NANNY_ADDR="localhost:9090" LOGXI=* ./nanny
 
   `POST`
 
+* **Headers:**
+
+  `X-Dont-Modify-Name: true` If specified, Nanny won't modify the `name` specified in the JSON payload. Useful when your signals come from programs with dynamic IP addresses.
+
 * **Data Params**
   ```js
   {
