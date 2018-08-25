@@ -25,8 +25,6 @@ type Server struct {
 	Notifiers notifiers       // Enabled notifiers.
 	Storage   storage.Storage // What to use as persistence system.
 
-	Server *http.Server
-
 	nanny nanny.Nanny
 }
 
@@ -262,12 +260,8 @@ func getSignalsHandler(n *nanny.Nanny, notifiers notifiers, store storage.Storag
 }
 
 func constructSignal(jsonSignal Signal, notif notifier.Notifier, store storage.Storage, req *http.Request) nanny.Signal {
-	remoteAddr := req.Header.Get("X-Forwarded-For")
-	if remoteAddr == "" {
-		remoteAddr = req.RemoteAddr
-	}
 	s := nanny.Signal{
-		Name:       constructName(jsonSignal.Name, remoteAddr),
+		Name:       constructName(jsonSignal.Name, req),
 		Notifier:   notif,
 		NextSignal: constructDuration(jsonSignal.NextSignal),
 		Meta:       jsonSignal.Meta,
@@ -282,18 +276,25 @@ func constructSignal(jsonSignal Signal, notif notifier.Notifier, store storage.S
 	return s
 }
 
-func constructName(name, remoteAddr string) string {
-	var outName string
+func constructName(name string, req *http.Request) string {
+	dontModifyName := req.Header.Get("X-Dont-Modify-Name")
+	if dontModifyName != "" {
+		return name
+	}
+
+	remoteAddr := req.Header.Get("X-Forwarded-For")
+	if remoteAddr == "" {
+		remoteAddr = req.RemoteAddr
+	}
+
 	// Split addr:port and add address to the name in format {programName}@{addr}.
 	host, _, err := net.SplitHostPort(remoteAddr)
 	if err != nil {
-		outName = fmt.Sprintf("%s@%s", name, remoteAddr)
 		log.Warn("Unable to split host from port, using whole remote address.", "addr", remoteAddr, "err", err)
-	} else {
-		outName = fmt.Sprintf("%s@%s", name, host)
+		return fmt.Sprintf("%s@%s", name, remoteAddr)
 	}
 
-	return outName
+	return fmt.Sprintf("%s@%s", name, host)
 }
 
 func constructDuration(nextSignal string) time.Duration {
