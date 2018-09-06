@@ -25,3 +25,5 @@ debian/nanny.debhelper.log
 debian/nanny.postinst.debhelper
 debian/nanny.postrm.debhelper
 debian/nanny.prerm.debhelper
+main
+nanny
