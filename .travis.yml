@@ -26,12 +26,10 @@ jobs:
       env:
         - TRAVIS_DEBIAN_DISTRIBUTION="sid"
       sudo: required
-      language: bash
+      language: generic
       services:
         - docker
-      before_install:
-        - docker pull koalaman/shellcheck:v0.4.7
       script:
-        - docker run -v $(pwd):/scripts koalaman/shellcheck /scripts/script.sh
-      matrix:
-      fast_finish: true
+        - wget -O- http://travis.debian.net/script.sh | sh -
+      if:
+      tag IS blank
