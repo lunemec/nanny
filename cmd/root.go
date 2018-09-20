@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"nanny/api"
+	"nanny/pkg/closer"
 	"nanny/pkg/notifier"
 
 	log "github.com/mgutz/logxi"
@@ -139,12 +140,8 @@ func runAPI() {
 	if err != nil {
 		log.Fatal("Unable to create/load sqlite storage", "dsn", config.StorageDSN, "err", err)
 	}
-	defer func() {
-		err := store.Close()
-		if err != nil {
-			log.Fatal("Unable to close sqlite storage.")
-		}
-	}()
+	defer closer.Close(store)
+
 	api := api.Server{
 		Name:      config.Name,
 		Notifiers: notifiers,
@@ -169,19 +166,7 @@ func runAPI() {
 
 	// CTRL+C handling.
 	idleConnsClosed := make(chan struct{})
-	go func() {
-		sigint := make(chan os.Signal, 1)
-		signal.Notify(sigint, os.Interrupt)
-		<-sigint
-		log.Info("Nanny shutting down.")
-
-		// We received an interrupt signal, shut down.
-		if err := server.Shutdown(context.Background()); err != nil {
-			// Error from closing listeners, or context timeout:
-			log.Error("HTTP server Shutdown: %v", err)
-		}
-		close(idleConnsClosed)
-	}()
+	go shutdown(&server, idleConnsClosed)
 
 	log.Info("Nanny listening", "addr", server.Addr)
 	err = server.ListenAndServe()
@@ -234,6 +219,22 @@ func makeNotifiers() (map[string]notifier.Notifier, error) {
 	}
 
 	return notifiers, nil
+}
+
+// shutdown handles interrupt signal and shuts down server cleanly, waiting for
+// all idle connections to be closed.
+func shutdown(server *http.Server, idleConnsClosed chan struct{}) {
+	sigint := make(chan os.Signal, 1)
+	signal.Notify(sigint, os.Interrupt)
+	<-sigint
+	log.Info("Nanny shutting down.")
+
+	// We received an interrupt signal, shut down.
+	if err := server.Shutdown(context.Background()); err != nil {
+		// Error from closing listeners, or context timeout:
+		log.Error("HTTP server Shutdown: %v", err)
+	}
+	close(idleConnsClosed)
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

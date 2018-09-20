@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"nanny/pkg/closer"
 	"nanny/pkg/nanny"
 	"nanny/pkg/notifier"
 	"nanny/pkg/storage"
@@ -97,6 +98,8 @@ func loadStorage(n *nanny.Nanny, notifiers notifiers, store storage.Storage) {
 		log.Warn(msg)
 		return
 	}
+	// create callback func using our storage.
+	callbackFunc := makeCallbackFunc(store)
 
 	// Create nanny timers from persisted signals.
 	for _, signal := range signals {
@@ -124,12 +127,7 @@ func loadStorage(n *nanny.Nanny, notifiers notifiers, store storage.Storage) {
 			NextSignal: time.Until(signal.NextSignal),
 			Meta:       signal.Meta,
 
-			CallbackFunc: func(s *nanny.Signal) {
-				err := store.Remove(storage.Signal{Name: s.Name})
-				if err != nil {
-					log.Error("Error removing signal from storage.", "err", err, "signal", signal)
-				}
-			},
+			CallbackFunc: callbackFunc,
 		}
 
 		err = n.Handle(s)
@@ -144,6 +142,18 @@ func loadStorage(n *nanny.Nanny, notifiers notifiers, store storage.Storage) {
 			"next_signal", s.NextSignal.String(),
 			"meta", s.Meta,
 			"notifier", signal.Notifier)
+	}
+}
+
+// makeCallbackFunc creates new function that can be used as nanny.Signal callback
+// while injecting storage dependency. This is used to remove signal from persistent
+// storage.
+func makeCallbackFunc(store storage.Storage) func(*nanny.Signal) {
+	return func(signal *nanny.Signal) {
+		err := store.Remove(storage.Signal{Name: signal.Name})
+		if err != nil {
+			log.Error("Error removing signal from storage.", "err", err, "signal", signal)
+		}
 	}
 }
 
@@ -194,7 +204,7 @@ func signalHandler(n *nanny.Nanny, notifiers notifiers, store storage.Storage, w
 	var signal Signal
 
 	dec := json.NewDecoder(req.Body)
-	defer Close(req.Body)
+	defer closer.Close(req.Body)
 
 	err := dec.Decode(&signal)
 	if err != nil {
@@ -320,12 +330,4 @@ func saveRoutes(route *mux.Route, router *mux.Router, ancestors []*mux.Route) er
 	}
 	routes[path] = route.GetName()
 	return nil
-}
-
-// Close closes any io.Closer and checks for error, which will be logged.
-func Close(closer io.Closer) {
-	err := closer.Close()
-	if err != nil {
-		log.Error("Unable to close resource!", "err", err, "type", fmt.Sprintf("%T", closer))
-	}
 }
