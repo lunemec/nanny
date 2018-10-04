@@ -217,3 +217,5 @@ Also often programs just log errors and fail silently, with nanny they fail loud
 > How do I secure my nanny?
 
 To use HTTPS, or authentication you should use a reverse proxy like Apache or Nginx.
+
+[![](https://codescene.io/projects/3429/status.svg) Get more details at **codescene.io**.](https://codescene.io/projects/3429/jobs/latest-successful/results)
