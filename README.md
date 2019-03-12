@@ -54,7 +54,7 @@ It's also possible to run Nanny using the provided Docker Compose file (see [doc
 ```yml
 docker-compose up -d
 ```
-**Note:** The provided `docker-compose.yml` file assumes that there is a `nanny.toml` file in the same directory as your `docker-compose.yml` file is placed. Feel free to update the volume definition according to your setup inside the Docker Compose file be editing the line `${PWD}/nanny.toml:/nanny.toml`.
+**Note:** The provided `docker-compose.yml` file assumes that there is a `nanny.toml` file in the same directory containing your `docker-compose.yml` file. Feel free to update the volume definition according to your setup inside the Docker Compose file by editing the line `${PWD}/nanny.toml:/nanny.toml`.
 
 ## Configuration
 See nanny.toml for a configuration example. The fields are self-explanatory (I think). Please create an issue if anything does not make sense!
