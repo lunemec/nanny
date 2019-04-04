@@ -31,6 +31,7 @@ type Config struct {
 	Sentry     Sentry
 	Twilio     Twilio
 	Slack      Slack
+	Xmpp       Xmpp
 }
 
 // Stderr notifier config.
@@ -71,6 +72,18 @@ type Twilio struct {
 type Slack struct {
 	Enabled    bool
 	WebhookURL string
+}
+
+// Xmpp config.
+type Xmpp struct {
+	Enabled      bool
+	To           []string
+	XMPPServer   string `mapstructure:"xmpp_server"`
+	XMPPPort     int    `mapstructure:"xmpp_port"`
+	XMPPUser     string `mapstructure:"xmpp_user"`
+	XMPPPassword string `mapstructure:"xmpp_password"`
+	XMPPResource string `mapstructure:"xmpp_resource"`
+	XMPPNoTLS    bool   `mapstructure:"xmpp_notls"`
 }
 
 var (
@@ -216,6 +229,21 @@ func makeNotifiers() (map[string]notifier.Notifier, error) {
 			return nil, errors.Wrap(err, "unable to create slack notifier")
 		}
 		notifiers["slack"] = slackNotifier
+	}
+	if config.Xmpp.Enabled {
+		xmppNotifier, err := notifier.NewXmpp(
+			config.Xmpp.To,
+			config.Xmpp.XMPPServer,
+			config.Xmpp.XMPPPort,
+			config.Xmpp.XMPPUser,
+			config.Xmpp.XMPPPassword,
+			config.Xmpp.XMPPResource,
+			config.Xmpp.XMPPNoTLS,
+		)
+		if err != nil {
+			return nil, errors.Wrap(err, "unable to create xmpp notifier")
+		}
+		notifiers["xmpp"] = xmppNotifier
 	}
 
 	return notifiers, nil

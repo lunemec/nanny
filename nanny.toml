@@ -33,3 +33,13 @@ to=""
 [slack]
 enabled=false
 webhookURL=""
+
+[xmpp]
+enabled=false
+to=["someone@xmpp.somewhere.com"]
+xmpp_server="xmpp.somewhere.com"
+xmpp_port=5222
+xmpp_user="someone@xmpp.somewhere.com"
+xmpp_password=""
+xmpp_resource="Nanny"
+xmpp_notls=false
