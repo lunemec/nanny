@@ -20,7 +20,7 @@ type Message struct {
 	Meta       map[string]string
 }
 
-// Format is deafult Message formatter, used to serialize information for some notifiers.
+// Format is default Message formatter, used to serialize information for some notifiers.
 // This is intended for future use, mainly the ability to set message format from config
 // or from API.
 func (m *Message) Format() string {

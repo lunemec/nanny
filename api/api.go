@@ -32,7 +32,7 @@ type Server struct {
 // Signal represents incomming JSON-encoded data to process.
 type Signal struct {
 	// Name of program being monitored.
-	// IP addres of caller is appended to the name so it may be non-unique.
+	// IP address of caller is appended to the name so it may be non-unique.
 	Name     string `json:"name"`
 	Notifier string `json:"notifier"` // What notifier to use.
 	// After how many seconds to expect next call.
@@ -137,7 +137,7 @@ func loadStorage(n *nanny.Nanny, notifiers notifiers, store storage.Storage) {
 			log.Warn(msg, "program", signal.Name, "err", err)
 			continue
 		}
-		log.Info("Loaded persisted signal successfull.",
+		log.Info("Loaded persisted signal successful.",
 			"program", signal.Name,
 			"next_signal", s.NextSignal.String(),
 			"meta", s.Meta,

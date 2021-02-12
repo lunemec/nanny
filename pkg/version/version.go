@@ -10,7 +10,7 @@ var (
 	BuildDate = ""
 	// GitCommit of this binary.
 	GitCommit = ""
-	// Version is, suprisingly nanny version.
+	// Version is, surprisingly nanny version.
 	Version = ""
 )
 
