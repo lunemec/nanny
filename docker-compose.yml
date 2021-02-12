@@ -1,8 +1,8 @@
-version: "3.6"
+version: "3.8"
 
 services:
   service:
-    image: nanny:latest
+    image: docker.io/library/nanny:latest
     restart: always
     ports:
       - 8080:8080
