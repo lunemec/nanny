@@ -189,7 +189,7 @@ By default, nanny logs only errors. To enable more verbose logging, use `LOGXI=*
 You can add extra meta-data to the API calls, which will be passed to all the notifiers. Metadata must conform to type `map[string]string`.
 
 ```bash
-curl http://localhost:8080/api/v1/signal --data '{ "name": "my program", "notifier": "stderr", "next_signal": "5"s "meta":{"custom": "metadata"} }'
+curl http://localhost:8080/api/v1/signal --data '{ "name": "my program", "notifier": "stderr", "next_signal": "5s", "meta":{"custom": "metadata"} }'
 ```
 
 These metadata will be displayed in the messages for stderr and email, and in tags for sentry.
@@ -201,6 +201,8 @@ Contributions welcome! Just be sure you run tests and lints.
 $ make
   Build
 make build                            Build production binary.
+make docker                           Build a Nanny Docker conainer using Docker
+make buildah                          Build a Nanny Docker conainer using Buildah
   Dev
 make run                              Run Nanny in dev mode, all logging and race detector ON.
 make test                             Run tests.

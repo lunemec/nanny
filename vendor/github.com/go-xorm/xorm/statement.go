@@ -5,17 +5,14 @@
 package xorm
 
 import (
-	"bytes"
 	"database/sql/driver"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"reflect"
 	"strings"
 	"time"
 
-	"github.com/go-xorm/builder"
-	"github.com/go-xorm/core"
+	"xorm.io/builder"
+	"xorm.io/core"
 )
 
 // Statement save all the sql info for executing SQL
@@ -55,11 +52,13 @@ type Statement struct {
 	omitColumnMap   columnMap
 	mustColumnMap   map[string]bool
 	nullableMap     map[string]bool
-	incrColumns     map[string]incrParam
-	decrColumns     map[string]decrParam
-	exprColumns     map[string]exprParam
+	incrColumns     exprParams
+	decrColumns     exprParams
+	exprColumns     exprParams
 	cond            builder.Cond
 	bufferSize      int
+	context         ContextCache
+	lastError       error
 }
 
 // Init reset all the statement's fields
@@ -95,11 +94,13 @@ func (statement *Statement) Init() {
 	statement.nullableMap = make(map[string]bool)
 	statement.checkVersion = true
 	statement.unscoped = false
-	statement.incrColumns = make(map[string]incrParam)
-	statement.decrColumns = make(map[string]decrParam)
-	statement.exprColumns = make(map[string]exprParam)
+	statement.incrColumns = exprParams{}
+	statement.decrColumns = exprParams{}
+	statement.exprColumns = exprParams{}
 	statement.cond = builder.NewCond()
 	statement.bufferSize = 0
+	statement.context = nil
+	statement.lastError = nil
 }
 
 // NoAutoCondition if you do not want convert bean's field as query condition, then use this function
@@ -124,13 +125,13 @@ func (statement *Statement) SQL(query interface{}, args ...interface{}) *Stateme
 		var err error
 		statement.RawSQL, statement.RawParams, err = query.(*builder.Builder).ToSQL()
 		if err != nil {
-			statement.Engine.logger.Error(err)
+			statement.lastError = err
 		}
 	case string:
 		statement.RawSQL = query.(string)
 		statement.RawParams = args
 	default:
-		statement.Engine.logger.Error("unsupported sql type")
+		statement.lastError = ErrUnSupportedSQLType
 	}
 
 	return statement
@@ -159,7 +160,7 @@ func (statement *Statement) And(query interface{}, args ...interface{}) *Stateme
 			}
 		}
 	default:
-		// TODO: not support condition type
+		statement.lastError = ErrConditionType
 	}
 
 	return statement
@@ -258,6 +259,18 @@ func (statement *Statement) buildUpdates(bean interface{},
 			continue
 		}
 		if len(columnMap) > 0 && !columnMap.contain(col.Name) {
+			continue
+		}
+
+		if col.MapType == core.ONLYFROMDB {
+			continue
+		}
+
+		if statement.incrColumns.isColExist(col.Name) {
+			continue
+		} else if statement.decrColumns.isColExist(col.Name) {
+			continue
+		} else if statement.exprColumns.isColExist(col.Name) {
 			continue
 		}
 
@@ -392,7 +405,7 @@ func (statement *Statement) buildUpdates(bean interface{},
 								continue
 							}
 						} else {
-							//TODO: how to handler?
+							// TODO: how to handler?
 							panic("not supported")
 						}
 					} else {
@@ -401,7 +414,7 @@ func (statement *Statement) buildUpdates(bean interface{},
 				} else {
 					// Blank struct could not be as update data
 					if requiredField || !isStructZero(fieldValue) {
-						bytes, err := json.Marshal(fieldValue.Interface())
+						bytes, err := DefaultJSONHandler.Marshal(fieldValue.Interface())
 						if err != nil {
 							panic(fmt.Sprintf("mashal %v failed", fieldValue.Interface()))
 						}
@@ -430,7 +443,7 @@ func (statement *Statement) buildUpdates(bean interface{},
 			}
 
 			if col.SQLType.IsText() {
-				bytes, err := json.Marshal(fieldValue.Interface())
+				bytes, err := DefaultJSONHandler.Marshal(fieldValue.Interface())
 				if err != nil {
 					engine.logger.Error(err)
 					continue
@@ -450,7 +463,7 @@ func (statement *Statement) buildUpdates(bean interface{},
 					fieldType.Elem().Kind() == reflect.Uint8 {
 					val = fieldValue.Slice(0, 0).Interface()
 				} else {
-					bytes, err = json.Marshal(fieldValue.Interface())
+					bytes, err = DefaultJSONHandler.Marshal(fieldValue.Interface())
 					if err != nil {
 						engine.logger.Error(err)
 						continue
@@ -529,65 +542,35 @@ func (statement *Statement) ID(id interface{}) *Statement {
 
 // Incr Generate  "Update ... Set column = column + arg" statement
 func (statement *Statement) Incr(column string, arg ...interface{}) *Statement {
-	k := strings.ToLower(column)
 	if len(arg) > 0 {
-		statement.incrColumns[k] = incrParam{column, arg[0]}
+		statement.incrColumns.addParam(column, arg[0])
 	} else {
-		statement.incrColumns[k] = incrParam{column, 1}
+		statement.incrColumns.addParam(column, 1)
 	}
 	return statement
 }
 
 // Decr Generate  "Update ... Set column = column - arg" statement
 func (statement *Statement) Decr(column string, arg ...interface{}) *Statement {
-	k := strings.ToLower(column)
 	if len(arg) > 0 {
-		statement.decrColumns[k] = decrParam{column, arg[0]}
+		statement.decrColumns.addParam(column, arg[0])
 	} else {
-		statement.decrColumns[k] = decrParam{column, 1}
+		statement.decrColumns.addParam(column, 1)
 	}
 	return statement
 }
 
 // SetExpr Generate  "Update ... Set column = {expression}" statement
-func (statement *Statement) SetExpr(column string, expression string) *Statement {
-	k := strings.ToLower(column)
-	statement.exprColumns[k] = exprParam{column, expression}
+func (statement *Statement) SetExpr(column string, expression interface{}) *Statement {
+	statement.exprColumns.addParam(column, expression)
 	return statement
-}
-
-// Generate  "Update ... Set column = column + arg" statement
-func (statement *Statement) getInc() map[string]incrParam {
-	return statement.incrColumns
-}
-
-// Generate  "Update ... Set column = column - arg" statement
-func (statement *Statement) getDec() map[string]decrParam {
-	return statement.decrColumns
-}
-
-// Generate  "Update ... Set column = {expression}" statement
-func (statement *Statement) getExpr() map[string]exprParam {
-	return statement.exprColumns
 }
 
 func (statement *Statement) col2NewColsWithQuote(columns ...string) []string {
 	newColumns := make([]string, 0)
+	quotes := append(strings.Split(statement.Engine.Quote(""), ""), "`")
 	for _, col := range columns {
-		col = strings.Replace(col, "`", "", -1)
-		col = strings.Replace(col, statement.Engine.QuoteStr(), "", -1)
-		ccols := strings.Split(col, ",")
-		for _, c := range ccols {
-			fields := strings.Split(strings.TrimSpace(c), ".")
-			if len(fields) == 1 {
-				newColumns = append(newColumns, statement.Engine.quote(fields[0]))
-			} else if len(fields) == 2 {
-				newColumns = append(newColumns, statement.Engine.quote(fields[0])+"."+
-					statement.Engine.quote(fields[1]))
-			} else {
-				panic(errors.New("unwanted colnames"))
-			}
-		}
+		newColumns = append(newColumns, statement.Engine.Quote(eraseAny(col, quotes...)))
 	}
 	return newColumns
 }
@@ -702,10 +685,9 @@ func (statement *Statement) OrderBy(order string) *Statement {
 
 // Desc generate `ORDER BY xx DESC`
 func (statement *Statement) Desc(colNames ...string) *Statement {
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf, statement.OrderStr)
+	var buf strings.Builder
 	if len(statement.OrderStr) > 0 {
-		fmt.Fprint(&buf, ", ")
+		fmt.Fprint(&buf, statement.OrderStr, ", ")
 	}
 	newColNames := statement.col2NewColsWithQuote(colNames...)
 	fmt.Fprintf(&buf, "%v DESC", strings.Join(newColNames, " DESC, "))
@@ -715,10 +697,9 @@ func (statement *Statement) Desc(colNames ...string) *Statement {
 
 // Asc provide asc order by query condition, the input parameters are columns.
 func (statement *Statement) Asc(colNames ...string) *Statement {
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf, statement.OrderStr)
+	var buf strings.Builder
 	if len(statement.OrderStr) > 0 {
-		fmt.Fprint(&buf, ", ")
+		fmt.Fprint(&buf, statement.OrderStr, ", ")
 	}
 	newColNames := statement.col2NewColsWithQuote(colNames...)
 	fmt.Fprintf(&buf, "%v ASC", strings.Join(newColNames, " ASC, "))
@@ -745,16 +726,43 @@ func (statement *Statement) Table(tableNameOrBean interface{}) *Statement {
 
 // Join The joinOP should be one of INNER, LEFT OUTER, CROSS etc - this will be prepended to JOIN
 func (statement *Statement) Join(joinOP string, tablename interface{}, condition string, args ...interface{}) *Statement {
-	var buf bytes.Buffer
+	var buf strings.Builder
 	if len(statement.JoinStr) > 0 {
 		fmt.Fprintf(&buf, "%v %v JOIN ", statement.JoinStr, joinOP)
 	} else {
 		fmt.Fprintf(&buf, "%v JOIN ", joinOP)
 	}
 
-	tbName := statement.Engine.TableName(tablename, true)
+	switch tp := tablename.(type) {
+	case builder.Builder:
+		subSQL, subQueryArgs, err := tp.ToSQL()
+		if err != nil {
+			statement.lastError = err
+			return statement
+		}
+		tbs := strings.Split(tp.TableName(), ".")
+		quotes := append(strings.Split(statement.Engine.Quote(""), ""), "`")
 
-	fmt.Fprintf(&buf, "%s ON %v", tbName, condition)
+		var aliasName = strings.Trim(tbs[len(tbs)-1], strings.Join(quotes, ""))
+		fmt.Fprintf(&buf, "(%s) %s ON %v", subSQL, aliasName, condition)
+		statement.joinArgs = append(statement.joinArgs, subQueryArgs...)
+	case *builder.Builder:
+		subSQL, subQueryArgs, err := tp.ToSQL()
+		if err != nil {
+			statement.lastError = err
+			return statement
+		}
+		tbs := strings.Split(tp.TableName(), ".")
+		quotes := append(strings.Split(statement.Engine.Quote(""), ""), "`")
+
+		var aliasName = strings.Trim(tbs[len(tbs)-1], strings.Join(quotes, ""))
+		fmt.Fprintf(&buf, "(%s) %s ON %v", subSQL, aliasName, condition)
+		statement.joinArgs = append(statement.joinArgs, subQueryArgs...)
+	default:
+		tbName := statement.Engine.TableName(tablename, true)
+		fmt.Fprintf(&buf, "%s ON %v", tbName, condition)
+	}
+
 	statement.JoinStr = buf.String()
 	statement.joinArgs = append(statement.joinArgs, args...)
 	return statement
@@ -779,11 +787,11 @@ func (statement *Statement) Unscoped() *Statement {
 }
 
 func (statement *Statement) genColumnStr() string {
-	var buf bytes.Buffer
 	if statement.RefTable == nil {
 		return ""
 	}
 
+	var buf strings.Builder
 	columns := statement.RefTable.Columns()
 
 	for _, col := range columns {
@@ -932,7 +940,7 @@ func (statement *Statement) genGetSQL(bean interface{}) (string, []interface{}, 
 		if len(statement.JoinStr) == 0 {
 			if len(columnStr) == 0 {
 				if len(statement.GroupByStr) > 0 {
-					columnStr = statement.Engine.Quote(strings.Replace(statement.GroupByStr, ",", statement.Engine.Quote(","), -1))
+					columnStr = statement.Engine.quoteColumns(statement.GroupByStr)
 				} else {
 					columnStr = statement.genColumnStr()
 				}
@@ -940,7 +948,7 @@ func (statement *Statement) genGetSQL(bean interface{}) (string, []interface{}, 
 		} else {
 			if len(columnStr) == 0 {
 				if len(statement.GroupByStr) > 0 {
-					columnStr = statement.Engine.Quote(strings.Replace(statement.GroupByStr, ",", statement.Engine.Quote(","), -1))
+					columnStr = statement.Engine.quoteColumns(statement.GroupByStr)
 				}
 			}
 		}
@@ -1027,23 +1035,20 @@ func (statement *Statement) genSumSQL(bean interface{}, columns ...string) (stri
 	return sqlStr, append(statement.joinArgs, condArgs...), nil
 }
 
-func (statement *Statement) genSelectSQL(columnStr, condSQL string, needLimit, needOrderBy bool) (a string, err error) {
-	var distinct string
+func (statement *Statement) genSelectSQL(columnStr, condSQL string, needLimit, needOrderBy bool) (string, error) {
+	var (
+		distinct                  string
+		dialect                   = statement.Engine.Dialect()
+		quote                     = statement.Engine.Quote
+		fromStr                   = " FROM "
+		top, mssqlCondi, whereStr string
+	)
 	if statement.IsDistinct && !strings.HasPrefix(columnStr, "count") {
 		distinct = "DISTINCT "
 	}
-
-	var dialect = statement.Engine.Dialect()
-	var quote = statement.Engine.Quote
-	var top string
-	var mssqlCondi string
-
-	var buf bytes.Buffer
 	if len(condSQL) > 0 {
-		fmt.Fprintf(&buf, " WHERE %v", condSQL)
+		whereStr = " WHERE " + condSQL
 	}
-	var whereStr = buf.String()
-	var fromStr = " FROM "
 
 	if dialect.DBType() == core.MSSQL && strings.Contains(statement.TableName(), "..") {
 		fromStr += statement.TableName()
@@ -1064,7 +1069,7 @@ func (statement *Statement) genSelectSQL(columnStr, condSQL string, needLimit, n
 
 	if dialect.DBType() == core.MSSQL {
 		if statement.LimitN > 0 {
-			top = fmt.Sprintf(" TOP %d ", statement.LimitN)
+			top = fmt.Sprintf("TOP %d ", statement.LimitN)
 		}
 		if statement.Start > 0 {
 			var column string
@@ -1103,43 +1108,50 @@ func (statement *Statement) genSelectSQL(columnStr, condSQL string, needLimit, n
 		}
 	}
 
-	// !nashtsai! REVIEW Sprintf is considered slowest mean of string concatnation, better to work with builder pattern
-	a = fmt.Sprintf("SELECT %v%v%v%v%v", distinct, top, columnStr, fromStr, whereStr)
+	var buf strings.Builder
+	fmt.Fprintf(&buf, "SELECT %v%v%v%v%v", distinct, top, columnStr, fromStr, whereStr)
 	if len(mssqlCondi) > 0 {
 		if len(whereStr) > 0 {
-			a += " AND " + mssqlCondi
+			fmt.Fprint(&buf, " AND ", mssqlCondi)
 		} else {
-			a += " WHERE " + mssqlCondi
+			fmt.Fprint(&buf, " WHERE ", mssqlCondi)
 		}
 	}
 
 	if statement.GroupByStr != "" {
-		a = fmt.Sprintf("%v GROUP BY %v", a, statement.GroupByStr)
+		fmt.Fprint(&buf, " GROUP BY ", statement.GroupByStr)
 	}
 	if statement.HavingStr != "" {
-		a = fmt.Sprintf("%v %v", a, statement.HavingStr)
+		fmt.Fprint(&buf, " ", statement.HavingStr)
 	}
 	if needOrderBy && statement.OrderStr != "" {
-		a = fmt.Sprintf("%v ORDER BY %v", a, statement.OrderStr)
+		fmt.Fprint(&buf, " ORDER BY ", statement.OrderStr)
 	}
 	if needLimit {
 		if dialect.DBType() != core.MSSQL && dialect.DBType() != core.ORACLE {
 			if statement.Start > 0 {
-				a = fmt.Sprintf("%v LIMIT %v OFFSET %v", a, statement.LimitN, statement.Start)
+				fmt.Fprintf(&buf, " LIMIT %v OFFSET %v", statement.LimitN, statement.Start)
 			} else if statement.LimitN > 0 {
-				a = fmt.Sprintf("%v LIMIT %v", a, statement.LimitN)
+				fmt.Fprint(&buf, " LIMIT ", statement.LimitN)
 			}
 		} else if dialect.DBType() == core.ORACLE {
 			if statement.Start != 0 || statement.LimitN != 0 {
-				a = fmt.Sprintf("SELECT %v FROM (SELECT %v,ROWNUM RN FROM (%v) at WHERE ROWNUM <= %d) aat WHERE RN > %d", columnStr, columnStr, a, statement.Start+statement.LimitN, statement.Start)
+				oldString := buf.String()
+				buf.Reset()
+				rawColStr := columnStr
+				if rawColStr == "*" {
+					rawColStr = "at.*"
+				}
+				fmt.Fprintf(&buf, "SELECT %v FROM (SELECT %v,ROWNUM RN FROM (%v) at WHERE ROWNUM <= %d) aat WHERE RN > %d",
+					columnStr, rawColStr, oldString, statement.Start+statement.LimitN, statement.Start)
 			}
 		}
 	}
 	if statement.IsForUpdate {
-		a = dialect.ForUpdateSql(a)
+		return dialect.ForUpdateSql(buf.String()), nil
 	}
 
-	return
+	return buf.String(), nil
 }
 
 func (statement *Statement) processIDParam() error {
@@ -1215,7 +1227,7 @@ func (statement *Statement) convertUpdateSQL(sqlStr string) (string, string) {
 
 	var whereStr = sqls[1]
 
-	//TODO: for postgres only, if any other database?
+	// TODO: for postgres only, if any other database?
 	var paraStr string
 	if statement.Engine.dialect.DBType() == core.POSTGRES {
 		paraStr = "$"

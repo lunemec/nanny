@@ -1,4 +1,4 @@
-FROM golang:1.10-alpine AS build
+FROM docker.io/library/golang:1.15.8-alpine AS build
 
 LABEL maintainer="Philip Schmid (@PhilipSchmid)"
 
@@ -7,7 +7,7 @@ COPY ./ /go/src/nanny
 WORKDIR /go/src/nanny
 RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -a -tags netgo -ldflags '-w -extldflags "-static"' -o /nanny .
 
-FROM alpine:3.8
+FROM docker.io/library/alpine:3.13
 
 RUN adduser -s /sbin/nologin -H -u 1000 -D nanny
 RUN mkdir -p /opt

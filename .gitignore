@@ -27,3 +27,4 @@ debian/nanny.postrm.debhelper
 debian/nanny.prerm.debhelper
 main
 nanny
+.idea*
