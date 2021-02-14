@@ -27,6 +27,7 @@ func TestSQLiteDataConsistency(t *testing.T) {
 	signal := storage.Signal{
 		Name:       "test",
 		NextSignal: time.Now(),
+		AllClear:   false,
 		Notifier:   "stderr",
 		Meta:       map[string]string{"meta": "data"},
 	}
@@ -56,6 +57,10 @@ func compareSignals(t *testing.T, this storage.Signal, other storage.Signal) {
 	// See: https://golang.org/pkg/time/#hdr-Monotonic_Clocks
 	if this.NextSignal.Round(0) != other.NextSignal {
 		t.Errorf("saved signal is not equal to loaded signal, saved: %+v, loaded: %+v", this.NextSignal, other.NextSignal)
+	}
+
+	if this.AllClear != other.AllClear {
+		t.Errorf("saved signal is not equal to loaded signal, saved: %+v, loaded: %+v", this.AllClear, other.AllClear)
 	}
 
 	if this.Notifier != other.Notifier {

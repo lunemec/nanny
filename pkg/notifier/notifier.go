@@ -17,6 +17,7 @@ type Message struct {
 	Nanny      string        // Nanny's name
 	Program    string        // Program's name
 	NextSignal time.Duration // How long have we not heard from program.
+	IsAllClear bool          // Specify if this is an all-clear notification
 	Meta       map[string]string
 }
 
@@ -24,5 +25,9 @@ type Message struct {
 // This is intended for future use, mainly the ability to set message format from config
 // or from API.
 func (m *Message) Format() string {
-	return fmt.Sprintf("%s: I did not hear from \"%s\" in %s!", m.Nanny, m.Program, m.NextSignal)
+	if m.IsAllClear {
+		return fmt.Sprintf("%s: I did hear from \"%s\"!", m.Nanny, m.Program)
+	} else {
+		return fmt.Sprintf("%s: I did not hear from \"%s\" in %s!", m.Nanny, m.Program, m.NextSignal)
+	}
 }

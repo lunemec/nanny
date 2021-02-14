@@ -58,6 +58,7 @@ func createTimer(nannyName, signalName string, duration time.Duration, meta map[
 		Name:         signalName,
 		Notifier:     dummy,
 		NextSignal:   duration,
+		AllClear:     false,
 		CallbackFunc: func(s *nanny.Signal) {},
 		Meta:         meta,
 	})
@@ -74,6 +75,7 @@ func TestNanny(t *testing.T) {
 		Name:       "test program",
 		Notifier:   dummy,
 		NextSignal: time.Duration(1) * time.Second,
+		AllClear:   false,
 	}
 
 	err := n.Handle(signal)
@@ -103,6 +105,7 @@ func TestNannyDoesNotNotify(t *testing.T) {
 		Name:       "test program",
 		Notifier:   dummy,
 		NextSignal: time.Duration(1) * time.Second,
+		AllClear:   false,
 	}
 
 	err := n.Handle(signal)
@@ -163,6 +166,7 @@ func TestNannyCallsErrorFunc(t *testing.T) {
 		Name:       "test program",
 		Notifier:   dummy,
 		NextSignal: time.Duration(1) * time.Second,
+		AllClear:   false,
 	}
 
 	err := n.Handle(signal)
@@ -206,6 +210,7 @@ func TestConcurrent(t *testing.T) {
 				Name:       fmt.Sprintf("test program %d", num),
 				Notifier:   dummy,
 				NextSignal: time.Duration(1) * time.Second,
+				AllClear:   false,
 			}
 
 			err := n.Handle(signal)
@@ -237,6 +242,7 @@ func TestMultipleTimerResets(t *testing.T) {
 		Name:       "test program",
 		Notifier:   dummy,
 		NextSignal: time.Duration(1) * time.Second,
+		AllClear:   false,
 	}
 
 	runHandle := func() {
@@ -270,6 +276,7 @@ func TestMsgChange(t *testing.T) {
 		Name:       "test msg changing program",
 		Notifier:   dummy,
 		NextSignal: time.Duration(2) * time.Second,
+		AllClear:   false,
 	}
 
 	err := n.Handle(signal)
@@ -287,6 +294,7 @@ func TestMsgChange(t *testing.T) {
 		Name:       "test msg changing program",
 		Notifier:   dummy,
 		NextSignal: time.Duration(1) * time.Second,
+		AllClear:   false,
 	})
 	if err != nil {
 		t.Errorf("n.Signal should not return error, got: %v\n", err)
@@ -311,6 +319,7 @@ func TestNannyTimer(t *testing.T) {
 		Name:         "test nannyTimer",
 		Notifier:     dummy,
 		NextSignal:   time.Duration(2) * time.Second,
+		AllClear:     false,
 		CallbackFunc: func(s *nanny.Signal) {},
 	}
 	err := n.Handle(signal)
@@ -331,6 +340,7 @@ func TestNannyTimer(t *testing.T) {
 		Name:         "test nannyTimer",
 		Notifier:     dummy,
 		NextSignal:   time.Duration(1) * time.Second,
+		AllClear:     false,
 		CallbackFunc: func(s *nanny.Signal) {},
 	})
 	if err != nil {
@@ -349,6 +359,64 @@ func TestNannyTimer(t *testing.T) {
 	}
 }
 
+func TestNannyAllClear(t *testing.T) {
+	n := nanny.Nanny{Name: "test nanny nannyAllClear"}
+	dummy := &DummyNotifier{}
+	signal := nanny.Signal{
+		Name:         "test nannyAllClear",
+		Notifier:     dummy,
+		NextSignal:   time.Duration(2) * time.Second,
+		AllClear:     true,
+		CallbackFunc: func(s *nanny.Signal) {},
+	}
+	err := n.Handle(signal)
+	if err != nil {
+		t.Errorf("n.Signal should not return error, got: %v\n", err)
+	}
+
+	// Trigger the first signal's error.
+	time.Sleep(time.Duration(2)*time.Second + time.Duration(100)*time.Millisecond)
+
+	// Before the `NextSignal` duration, nothing should happen.
+	dummyMsg := dummy.NotifyMsg()
+	if dummyMsg.Program == "" {
+		t.Errorf("dummy msg should not be empty after NextSignal time expires: %v\n", dummyMsg)
+	}
+	// Call handle with different nextsignal again to simulate program calling before notification.
+	err = n.Handle(nanny.Signal{
+		Name:         "test nannyAllClear",
+		Notifier:     dummy,
+		NextSignal:   time.Duration(3) * time.Second,
+		AllClear:     true,
+		CallbackFunc: func(s *nanny.Signal) {},
+	})
+	if err != nil {
+		t.Errorf("n.Signal should not return error, got: %v\n", err)
+	}
+	// After 100ms, DummyNotifier should return error.
+	time.Sleep(time.Duration(100) * time.Millisecond)
+	dummyMsg = dummy.NotifyMsg()
+	if dummyMsg.Program == "" {
+		t.Errorf("if all-clear is activated dummy msg should contain a message while time is not yet expired: %v\n", dummyMsg)
+	}
+
+	msg := dummyMsg.Format()
+	if !strings.Contains(msg, "did hear") {
+		t.Errorf("dummy msg should contain all-clear: %v\n", dummyMsg)
+	}
+	// After 3s, DummyNotifier should return error.
+	time.Sleep(time.Duration(3) * time.Second)
+	dummyMsg = dummy.NotifyMsg()
+	if dummyMsg.Program == "" {
+		t.Errorf("dummy msg should not be empty after NextSignal time expired: %v\n", dummyMsg)
+	}
+
+	msg = dummyMsg.Format()
+	if strings.Contains(msg, "2s") {
+		t.Errorf("dummy msg should not contain 2s after NextSignal time expired: %v\n", dummyMsg)
+	}
+}
+
 func TestChangingMeta(t *testing.T) {
 	n := nanny.Nanny{Name: "test nanny changing meta"}
 	dummy := &DummyNotifier{}
@@ -356,6 +424,7 @@ func TestChangingMeta(t *testing.T) {
 		Name:         "test changing meta",
 		Notifier:     dummy,
 		NextSignal:   time.Duration(1) * time.Second,
+		AllClear:     false,
 		CallbackFunc: func(s *nanny.Signal) {},
 		Meta: map[string]string{
 			"ping": "original-message",
@@ -371,6 +440,7 @@ func TestChangingMeta(t *testing.T) {
 		Name:         "test changing meta",
 		Notifier:     dummy,
 		NextSignal:   time.Duration(1) * time.Second,
+		AllClear:     false,
 		CallbackFunc: func(s *nanny.Signal) {},
 		Meta: map[string]string{
 			"ping": "updated-message",
@@ -399,6 +469,7 @@ func TestGetTimers(t *testing.T) {
 		Name:         "test signal 1",
 		Notifier:     dummy,
 		NextSignal:   time.Duration(1) * time.Second,
+		AllClear:     false,
 		CallbackFunc: func(s *nanny.Signal) {},
 		Meta:         map[string]string{},
 	})
@@ -409,6 +480,7 @@ func TestGetTimers(t *testing.T) {
 		Name:         "test signal 2",
 		Notifier:     dummy,
 		NextSignal:   time.Duration(1) * time.Hour,
+		AllClear:     false,
 		CallbackFunc: func(s *nanny.Signal) {},
 		Meta:         map[string]string{},
 	})
@@ -493,6 +565,7 @@ func TestTimerMarshalJSONNextSignal(t *testing.T) {
 		Name:       signalName,
 		Notifier:   dummy,
 		NextSignal: dur,
+		AllClear:   false,
 	})
 	if err != nil {
 		t.Errorf("expected to handle signal without error, got error: %+v \n", err)
@@ -524,6 +597,7 @@ func TestTimerMarshalJSONNextSignal(t *testing.T) {
 		Name:       signalName,
 		Notifier:   dummy,
 		NextSignal: dur,
+		AllClear:   false,
 	})
 	if err != nil {
 		t.Errorf("expected to handle signal without error, got error: %+v \n", err)

@@ -12,6 +12,7 @@ enabled=false
 from="nanny@myserver.com"
 to=["someone@somewhere.com"]
 subject="Nanny alert for %s"
+subject_all_clear="Nanny all-clear for %s"
 body="%s"
 smtp_server="my.smtp.server"
 smtp_port=587

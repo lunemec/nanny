@@ -9,10 +9,11 @@ import (
 
 // Email implements Notifier interface for SMTP.
 type Email struct {
-	From    string
-	To      []string
-	Subject string
-	Body    string
+	From            string
+	To              []string
+	Subject         string
+	SubjectAllClear string
+	Body            string
 
 	Server   string
 	Port     int
@@ -27,7 +28,11 @@ func (n *Email) Notify(msg Message) error {
 	m := gomail.NewMessage()
 	m.SetHeader("From", n.From)
 	m.SetHeader("To", n.To...)
-	m.SetHeader("Subject", fmt.Sprintf(n.Subject, msg.Program))
+	if msg.IsAllClear {
+		m.SetHeader("Subject", fmt.Sprintf(n.SubjectAllClear, msg.Program))
+	} else {
+		m.SetHeader("Subject", fmt.Sprintf(n.Subject, msg.Program))
+	}
 	m.SetBody("text/html", fmt.Sprintf(n.Body, fmt.Sprintf("%s (Meta: %v)", msg.Format(), msg.Meta)))
 
 	d := gomail.NewDialer(n.Server, n.Port, n.User, n.Password)

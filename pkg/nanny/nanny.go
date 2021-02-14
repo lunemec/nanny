@@ -28,6 +28,7 @@ type Signal struct {
 	Name       string
 	Notifier   notifier.Notifier // What notifier to use.
 	NextSignal time.Duration     // Notify after reaching this timeout.
+	AllClear   bool              // Activate optional all-clear notification
 	Meta       map[string]string
 
 	// Optional callback function that will be called when notifier is called.
