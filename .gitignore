@@ -12,7 +12,6 @@
 *.out
 
 build/
-nanny
 nanny.sqlite
 *.tar.gz
 *.deb
@@ -26,5 +25,5 @@ debian/nanny.postinst.debhelper
 debian/nanny.postrm.debhelper
 debian/nanny.prerm.debhelper
 main
-nanny
+/nanny
 .idea*

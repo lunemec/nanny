@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "nanny.fullname" . }}
+  labels:
+    {{- include "nanny.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.nanny.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "nanny.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.nanny.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "nanny.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.nanny.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "nanny.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.nanny.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.nanny.securityContext | nindent 12 }}
+          image: "{{ .Values.nanny.image.repository }}:{{ .Values.nanny.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.nanny.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.nanny.containerPort | default 8080 }}
+              protocol: TCP
+          {{- if not .Values.nanny.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /api/version
+              port: http
+          {{- end }}
+          {{- if not .Values.nanny.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: /api/version
+              port: http
+          {{- end }}
+          resources:
+            {{- toYaml .Values.nanny.resources | nindent 12 }}
+      {{- with .Values.nanny.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nanny.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nanny.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
