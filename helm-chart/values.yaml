@@ -4,11 +4,34 @@ nanny:
   # Replica count of nanny (please be aware that nanny is currently not supporting any HA setup)
   replicaCount: 1
 
+  # Enable debug logging of nanny:
+  debug:
+    enabled: false
+
+  # Configure nanny instance name and listening address & port
+  customConfig:
+    name: "Nanny"
+    addr: "0.0.0.0:8080"
+
+  # Enable persistence for nannys sqlite DB:
+  persistence:
+    enabled: true
+    existingClaim: ""
+    # If defined, storageClassName: <storageClass>
+    # If set to "-", storageClassName: "", which disables dynamic provisioning
+    # If undefined (the default) or set to null, no storageClassName spec is
+    #   set, choosing the default provisioner.
+    # storageClassName: "-"
+    accessMode: ReadWriteOnce
+    size: "1Gi"
+    annotations: {}
+
+  # Configure nanny image settings
   image:
-    repository: quay.io/nanny/nanny
+    repository: lunemec/nanny
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: ""
+    tag: "0.4.1"
 
   imagePullSecrets: []
   nameOverride: ""
@@ -47,13 +70,13 @@ nanny:
     enabled: true
 
   # Specify resource limits/requests for the nanny container
-  resources: {}
-    # limits:
-    #   cpu: 100m
-    #   memory: 128Mi
-    # requests:
-    #   cpu: 100m
-    #   memory: 128Mi
+  resources:
+    limits:
+      cpu: 50m
+      memory: 64Mi
+    requests:
+      cpu: 10m
+      memory: 16Mi
 
   nodeSelector: {}
 

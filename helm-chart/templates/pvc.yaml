@@ -1,0 +1,26 @@
+{{- if .Values.nanny.persistence.enabled }}
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: {{ template "nanny.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+{{- with .Values.nanny.persistence.annotations  }}
+  annotations:
+{{ toYaml . | indent 4 }}
+{{- end }}
+  labels:
+    {{- include "nanny.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.nanny.persistence.accessMode | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.nanny.persistence.size | quote }}
+{{- if .Values.nanny.persistence.storageClassName }}
+  {{- if (eq "-" .Values.nanny.persistence.storageClassName) }}
+  storageClassName: ""
+  {{- else }}
+  storageClassName: "{{ .Values.nanny.persistence.storageClassName }}"
+  {{- end }}
+{{- end }}
+{{- end }}
