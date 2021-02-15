@@ -12,20 +12,32 @@ type Field struct {
 	Short bool   `json:"short"`
 }
 
+type Action struct {
+	Type	string   `json:"type"`
+	Text	string   `json:"text"`
+	Url 	string   `json:"url"`
+	Style 	string   `json:"style"`
+}
+
 type Attachment struct {
-	Fallback   *string  `json:"fallback"`
-	Color      *string  `json:"color"`
-	PreText    *string  `json:"pretext"`
-	AuthorName *string  `json:"author_name"`
-	AuthorLink *string  `json:"author_link"`
-	AuthorIcon *string  `json:"author_icon"`
-	Title      *string  `json:"title"`
-	TitleLink  *string  `json:"title_link"`
-	Text       *string  `json:"text"`
-	ImageUrl   *string  `json:"image_url"`
-	Fields     []*Field `json:"fields"`
-	Footer     *string  `json:"footer"`
-	FooterIcon *string  `json:"footer_icon"`
+	Fallback     *string   `json:"fallback"`
+	Color        *string   `json:"color"`
+	PreText      *string   `json:"pretext"`
+	AuthorName   *string   `json:"author_name"`
+	AuthorLink   *string   `json:"author_link"`
+	AuthorIcon   *string   `json:"author_icon"`
+	Title        *string   `json:"title"`
+	TitleLink    *string   `json:"title_link"`
+	Text         *string   `json:"text"`
+	ImageUrl     *string   `json:"image_url"`
+	Fields       []*Field  `json:"fields"`
+	Footer       *string   `json:"footer"`
+	FooterIcon   *string   `json:"footer_icon"`
+	Timestamp    *int64    `json:"ts"`
+	MarkdownIn   *[]string `json:"mrkdwn_in"`
+	Actions      []*Action `json:"actions"`
+	CallbackID   *string   `json:"callback_id"`
+	ThumbnailUrl *string   `json:"thumb_url"`
 }
 
 type Payload struct {
@@ -39,10 +51,16 @@ type Payload struct {
 	Attachments []Attachment `json:"attachments,omitempty"`
 	UnfurlLinks bool         `json:"unfurl_links,omitempty"`
 	UnfurlMedia bool         `json:"unfurl_media,omitempty"`
+	Markdown    bool         `json:"mrkdwn,omitempty"`
 }
 
 func (attachment *Attachment) AddField(field Field) *Attachment {
 	attachment.Fields = append(attachment.Fields, &field)
+	return attachment
+}
+
+func (attachment *Attachment) AddAction(action Action) *Attachment {
+	attachment.Actions = append(attachment.Actions, &action)
 	return attachment
 }
 

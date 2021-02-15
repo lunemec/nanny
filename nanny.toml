@@ -8,7 +8,7 @@ storage_dsn="file:nanny.sqlite" # SQLite data source name.
 enabled=true
 
 [email]
-enabled=true
+enabled=false
 from="nanny@myserver.com"
 to=["someone@somewhere.com"]
 subject="Nanny alert for %s"
@@ -19,11 +19,11 @@ smtp_user="someone@somewhere.com"
 smtp_password=""
 
 [sentry]
-enabled=true
+enabled=false
 dsn=""
 
 [twilio]
-enabled=true
+enabled=false
 accountSid=""
 authToken=""
 appSid=""

@@ -15,13 +15,13 @@ type FaxBase struct {
 	DateUpdated string `json:"date_updated"`
 }
 
-// Returns FaxBase.DateCreated as a time.Time object
+// DateCreatedAsTime returns FaxBase.DateCreated as a time.Time object
 // instead of a string.
 func (d *FaxBase) DateCreatedAsTime() (time.Time, error) {
 	return time.Parse(time.RFC1123Z, d.DateCreated)
 }
 
-// Returns FaxBase.DateUpdated as a time.Time object
+// DateUpdatesAsTime returns FaxBase.DateUpdated as a time.Time object
 // instead of a string.
 func (d *FaxBase) DateUpdatesAsTime() (time.Time, error) {
 	return time.Parse(time.RFC1123Z, d.DateUpdated)
@@ -39,8 +39,8 @@ type FaxResource struct {
 	From       string  `json:"from"`
 	To         string  `json:"to"`
 	Direction  string  `json:"direction"`
-	NumPages   uint    `json:"num_pages,string"`
-	Duration   uint    `json:"duration,string"`
+	NumPages   uint    `json:"num_pages"`
+	Duration   uint    `json:"duration"`
 	MediaSid   string  `json:"media_sid"`
 	MediaUrl   string  `json:"media_url"`
 	Status     string  `json:"status"`

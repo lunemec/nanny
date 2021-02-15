@@ -1,4 +1,4 @@
-// Copyright 2011 The Go Authors.  All rights reserved.
+// Copyright 2011 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -43,7 +43,7 @@ const (
 )
 
 // Default TLS configuration options
-var DefaultConfig tls.Config
+var DefaultConfig = &tls.Config{}
 
 // DebugWriter is the writer used to write debugging output to.
 var DebugWriter io.Writer = os.Stderr
@@ -76,7 +76,7 @@ func containsIgnoreCase(s, substr string) bool {
 	return strings.Contains(s, substr)
 }
 
-func connect(host, user, passwd string) (net.Conn, error) {
+func connect(host, user, passwd string, timeout time.Duration) (net.Conn, error) {
 	addr := host
 
 	if strings.TrimSpace(host) == "" {
@@ -117,7 +117,7 @@ func connect(host, user, passwd string) (net.Conn, error) {
 		}
 	}
 
-	c, err := net.Dial("tcp", addr)
+	c, err := net.DialTimeout("tcp", addr, timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -152,6 +152,10 @@ type Options struct {
 
 	// Password supplies the password to use for authentication with the remote server.
 	Password string
+
+	// DialTimeout is the time limit for establishing a connection. A
+	// DialTimeout of zero means no timeout.
+	DialTimeout time.Duration
 
 	// Resource specifies an XMPP client resource, like "bot", instead of accepting one
 	// from the server.  Use "" to let the server generate one for your client.
@@ -199,13 +203,35 @@ type Options struct {
 // NewClient establishes a new Client connection based on a set of Options.
 func (o Options) NewClient() (*Client, error) {
 	host := o.Host
-	c, err := connect(host, o.User, o.Password)
+	if strings.TrimSpace(host) == "" {
+		a := strings.SplitN(o.User, "@", 2)
+		if len(a) == 2 {
+			if _, addrs, err := net.LookupSRV("xmpp-client", "tcp", a[1]); err == nil {
+				if len(addrs) > 0 {
+					// default to first record
+					host = fmt.Sprintf("%s:%d", addrs[0].Target, addrs[0].Port)
+					defP := addrs[0].Priority
+					for _, adr := range addrs {
+						if adr.Priority < defP {
+							host = fmt.Sprintf("%s:%d", adr.Target, adr.Port)
+							defP = adr.Priority
+						}
+					}
+				} else {
+					host = a[1]
+				}
+			} else {
+				host = a[1]
+			}
+		}
+	}
+	c, err := connect(host, o.User, o.Password, o.DialTimeout)
 	if err != nil {
 		return nil, err
 	}
 
-	if strings.LastIndex(o.Host, ":") > 0 {
-		host = host[:strings.LastIndex(o.Host, ":")]
+	if strings.LastIndex(host, ":") > 0 {
+		host = host[:strings.LastIndex(host, ":")]
 	}
 
 	client := new(Client)
@@ -215,11 +241,11 @@ func (o Options) NewClient() (*Client, error) {
 		var tlsconn *tls.Conn
 		if o.TLSConfig != nil {
 			tlsconn = tls.Client(c, o.TLSConfig)
+			host = o.TLSConfig.ServerName
 		} else {
-			DefaultConfig.ServerName = host
-			newconfig := DefaultConfig
+			newconfig := DefaultConfig.Clone()
 			newconfig.ServerName = host
-			tlsconn = tls.Client(c, &newconfig)
+			tlsconn = tls.Client(c, newconfig)
 		}
 		if err = tlsconn.Handshake(); err != nil {
 			return nil, err
@@ -504,8 +530,7 @@ func (c *Client) startTLSIfRequired(f *streamFeatures, o *Options, domain string
 
 	tc := o.TLSConfig
 	if tc == nil {
-		tc = new(tls.Config)
-		*tc = DefaultConfig
+		tc = DefaultConfig.Clone()
 		//TODO(scott): we should consider using the server's address or reverse lookup
 		tc.ServerName = domain
 	}
@@ -575,6 +600,8 @@ type Chat struct {
 	Text      string
 	Subject   string
 	Thread    string
+	Ooburl    string
+	Oobdesc   string
 	Roster    Roster
 	Other     []string
 	OtherElem []XMLElement
@@ -616,6 +643,24 @@ func (c *Client) Recv() (stanza interface{}, err error) {
 		}
 		switch v := val.(type) {
 		case *clientMessage:
+			if v.Event.XMLNS == XMPPNS_PUBSUB_EVENT {
+				// Handle Pubsub notifications
+				switch v.Event.Items.Node {
+				case XMPPNS_AVATAR_PEP_METADATA:
+					return handleAvatarMetadata(v.Event.Items.Items[0].Body,
+						v.From)
+				// I am not sure whether this can even happen.
+				// XEP-0084 only specifies a subscription to
+				// the metadata node.
+				/*case XMPPNS_AVATAR_PEP_DATA:
+				return handleAvatarData(v.Event.Items.Items[0].Body,
+					v.From,
+					v.Event.Items.Items[0].ID)*/
+				default:
+					return pubsubClientToReturn(v.Event), nil
+				}
+			}
+
 			stamp, _ := time.Parse(
 				"2006-01-02T15:04:05Z",
 				v.Delay.Stamp,
@@ -640,33 +685,167 @@ func (c *Client) Recv() (stanza interface{}, err error) {
 		case *clientPresence:
 			return Presence{v.From, v.To, v.Type, v.Show, v.Status}, nil
 		case *clientIQ:
-			// TODO check more strictly
-			if bytes.Equal(bytes.TrimSpace(v.Query), []byte(`<ping xmlns='urn:xmpp:ping'/>`)) || bytes.Equal(bytes.TrimSpace(v.Query), []byte(`<ping xmlns="urn:xmpp:ping"/>`)) {
+			switch {
+			case v.Query.XMLName.Space == "urn:xmpp:ping":
+				// TODO check more strictly
 				err := c.SendResultPing(v.ID, v.From)
 				if err != nil {
 					return Chat{}, err
 				}
+				fallthrough
+			case v.Type == "error":
+				switch v.ID {
+				case "sub1":
+					// Pubsub subscription failed
+					var errs []clientPubsubError
+					err := xml.Unmarshal([]byte(v.Error.InnerXML), &errs)
+					if err != nil {
+						return PubsubSubscription{}, err
+					}
+
+					var errsStr []string
+					for _, e := range errs {
+						errsStr = append(errsStr, e.XMLName.Local)
+					}
+
+					return PubsubSubscription{
+						Errors: errsStr,
+					}, nil
+				}
+			case v.Type == "result" && v.ID == "unsub1":
+				// Unsubscribing MAY contain a pubsub element. But it does
+				// not have to
+				return PubsubUnsubscription{
+					SubID:  "",
+					JID:    v.From,
+					Node:   "",
+					Errors: nil,
+				}, nil
+			case v.Query.XMLName.Local == "pubsub":
+				switch v.ID {
+				case "sub1":
+					// Subscription or unsubscription was successful
+					var sub clientPubsubSubscription
+					err := xml.Unmarshal([]byte(v.Query.InnerXML), &sub)
+					if err != nil {
+						return PubsubSubscription{}, err
+					}
+
+					return PubsubSubscription{
+						SubID:  sub.SubID,
+						JID:    sub.JID,
+						Node:   sub.Node,
+						Errors: nil,
+					}, nil
+				case "unsub1":
+					var sub clientPubsubSubscription
+					err := xml.Unmarshal([]byte(v.Query.InnerXML), &sub)
+					if err != nil {
+						return PubsubUnsubscription{}, err
+					}
+
+					return PubsubUnsubscription{
+						SubID:  sub.SubID,
+						JID:    v.From,
+						Node:   sub.Node,
+						Errors: nil,
+					}, nil
+				case "items1", "items3":
+					var p clientPubsubItems
+					err := xml.Unmarshal([]byte(v.Query.InnerXML), &p)
+					if err != nil {
+						return PubsubItems{}, err
+					}
+
+					switch p.Node {
+					case XMPPNS_AVATAR_PEP_DATA:
+						return handleAvatarData(p.Items[0].Body,
+							v.From,
+							p.Items[0].ID)
+					case XMPPNS_AVATAR_PEP_METADATA:
+						return handleAvatarMetadata(p.Items[0].Body,
+							v.From)
+					default:
+						return PubsubItems{
+							p.Node,
+							pubsubItemsToReturn(p.Items),
+						}, nil
+					}
+					// Note: XEP-0084 states that metadata and data
+					// should be fetched with an id of retrieve1.
+					// Since we already have PubSub implemented, we
+					// can just use items1 and items3 to do the same
+					// as an Avatar node is just a PEP (PubSub) node.
+					/*case "retrieve1":
+					var p clientPubsubItems
+					err := xml.Unmarshal([]byte(v.Query.InnerXML), &p)
+					if err != nil {
+						return PubsubItems{}, err
+					}
+
+					switch p.Node {
+					case XMPPNS_AVATAR_PEP_DATA:
+						return handleAvatarData(p.Items[0].Body,
+							v.From,
+							p.Items[0].ID)
+					case XMPPNS_AVATAR_PEP_METADATA:
+						return handleAvatarMetadata(p.Items[0].Body,
+							v
+					}*/
+				}
+			case v.Query.XMLName.Local == "":
+				return IQ{ID: v.ID, From: v.From, To: v.To, Type: v.Type}, nil
+			default:
+				res, err := xml.Marshal(v.Query)
+				if err != nil {
+					return Chat{}, err
+				}
+
+				return IQ{ID: v.ID, From: v.From, To: v.To, Type: v.Type,
+					Query: res}, nil
 			}
-			return IQ{ID: v.ID, From: v.From, To: v.To, Type: v.Type, Query: v.Query}, nil
 		}
 	}
 }
 
 // Send sends the message wrapped inside an XMPP message stanza body.
 func (c *Client) Send(chat Chat) (n int, err error) {
-	var subtext = ``
-	var thdtext = ``
+	var subtext, thdtext, oobtext string
 	if chat.Subject != `` {
 		subtext = `<subject>` + xmlEscape(chat.Subject) + `</subject>`
 	}
 	if chat.Thread != `` {
 		thdtext = `<thread>` + xmlEscape(chat.Thread) + `</thread>`
 	}
+	if chat.Ooburl != `` {
+		oobtext = `<x xmlns="jabber:x:oob"><url>` + xmlEscape(chat.Ooburl) + `</url>`
+		if chat.Oobdesc != `` {
+			oobtext += `<desc>` + xmlEscape(chat.Oobdesc) + `</desc>`
+		}
+		oobtext += `</x>`
+	}
 
-	stanza := "<message to='%s' type='%s' id='%s' xml:lang='en'>" + subtext + "<body>%s</body>" + thdtext + "</message>"
+	stanza := "<message to='%s' type='%s' id='%s' xml:lang='en'>" + subtext + "<body>%s</body>" + oobtext + thdtext + "</message>"
 
 	return fmt.Fprintf(c.conn, stanza,
 		xmlEscape(chat.Remote), xmlEscape(chat.Type), cnonce(), xmlEscape(chat.Text))
+}
+
+// SendOOB sends OOB data wrapped inside an XMPP message stanza, without actual body.
+func (c *Client) SendOOB(chat Chat) (n int, err error) {
+	var thdtext, oobtext string
+	if chat.Thread != `` {
+		thdtext = `<thread>` + xmlEscape(chat.Thread) + `</thread>`
+	}
+	if chat.Ooburl != `` {
+		oobtext = `<x xmlns="jabber:x:oob"><url>` + xmlEscape(chat.Ooburl) + `</url>`
+		if chat.Oobdesc != `` {
+			oobtext += `<desc>` + xmlEscape(chat.Oobdesc) + `</desc>`
+		}
+		oobtext += `</x>`
+	}
+	return fmt.Fprintf(c.conn, "<message to='%s' type='%s' id='%s' xml:lang='en'>"+oobtext+thdtext+"</message>",
+		xmlEscape(chat.Remote), xmlEscape(chat.Type), cnonce())
 }
 
 // SendOrg sends the original text without being wrapped in an XMPP message stanza.
@@ -777,6 +956,9 @@ type clientMessage struct {
 	Body    string `xml:"body"`
 	Thread  string `xml:"thread"`
 
+	// Pubsub
+	Event clientPubsubEvent `xml:"event"`
+
 	// Any hasn't matched element
 	Other []XMLElement `xml:",any"`
 
@@ -843,22 +1025,23 @@ type clientPresence struct {
 
 type clientIQ struct {
 	// info/query
-	XMLName xml.Name `xml:"jabber:client iq"`
-	From    string   `xml:"from,attr"`
-	ID      string   `xml:"id,attr"`
-	To      string   `xml:"to,attr"`
-	Type    string   `xml:"type,attr"` // error, get, result, set
-	Query   []byte   `xml:",innerxml"`
+	XMLName xml.Name   `xml:"jabber:client iq"`
+	From    string     `xml:"from,attr"`
+	ID      string     `xml:"id,attr"`
+	To      string     `xml:"to,attr"`
+	Type    string     `xml:"type,attr"` // error, get, result, set
+	Query   XMLElement `xml:",any"`
 	Error   clientError
 	Bind    bindBind
 }
 
 type clientError struct {
-	XMLName xml.Name `xml:"jabber:client error"`
-	Code    string   `xml:",attr"`
-	Type    string   `xml:",attr"`
-	Any     xml.Name
-	Text    string
+	XMLName  xml.Name `xml:"jabber:client error"`
+	Code     string   `xml:",attr"`
+	Type     string   `xml:"type,attr"`
+	Any      xml.Name
+	InnerXML []byte `xml:",innerxml"`
+	Text     string
 }
 
 type clientQuery struct {
