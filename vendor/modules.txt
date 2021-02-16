@@ -2,28 +2,29 @@
 ## explicit
 # github.com/ahmetb/govvv v0.3.0
 ## explicit
-# github.com/ashwanthkumar/slack-go-webhook v0.0.0-20170722190301-58b9a44feb24
+# github.com/ashwanthkumar/slack-go-webhook v0.0.0-20200209025033-430dd4e66960
 ## explicit
 github.com/ashwanthkumar/slack-go-webhook
-# github.com/certifi/gocertifi v0.0.0-20180118203423-deb3ae2ef261
+# github.com/certifi/gocertifi v0.0.0-20200922220541-2c3bb06c6054
 ## explicit
 github.com/certifi/gocertifi
-# github.com/cornelk/hashmap v0.0.0-20180619084054-bbc7b3cb4502
+# github.com/cornelk/hashmap v1.0.1
 ## explicit
 github.com/cornelk/hashmap
 # github.com/davecgh/go-spew v1.1.1
 github.com/davecgh/go-spew/spew
-# github.com/dchest/siphash v1.1.0
+# github.com/dchest/siphash v1.2.2
+## explicit
 github.com/dchest/siphash
 # github.com/dgrijalva/jwt-go v3.2.0+incompatible
 ## explicit
 github.com/dgrijalva/jwt-go
 # github.com/elazarl/goproxy v0.0.0-20181111060418-2ce16c963a8a
 ## explicit
-# github.com/fsnotify/fsnotify v1.4.7
+# github.com/fsnotify/fsnotify v1.4.9
 ## explicit
 github.com/fsnotify/fsnotify
-# github.com/getsentry/raven-go v0.0.0-20180517221441-ed7bcb39ff10
+# github.com/getsentry/raven-go v0.2.0
 ## explicit
 github.com/getsentry/raven-go
 # github.com/go-xorm/xorm v0.7.9
@@ -31,21 +32,19 @@ github.com/getsentry/raven-go
 github.com/go-xorm/xorm
 # github.com/golang/lint v0.0.0-20180702182130-06c8688daad7
 ## explicit
+# github.com/google/go-querystring v1.0.0
+github.com/google/go-querystring/query
 # github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 ## explicit
 # github.com/gorilla/context v1.1.1
 ## explicit
-github.com/gorilla/context
-# github.com/gorilla/mux v1.6.2
+# github.com/gorilla/mux v1.8.0
 ## explicit
 github.com/gorilla/mux
-# github.com/gorilla/schema v1.0.2
+# github.com/gorilla/schema v1.2.0
 ## explicit
 github.com/gorilla/schema
-# github.com/grpc-ecosystem/grpc-gateway v1.6.2
-## explicit
-# github.com/hashicorp/hcl v0.0.0-20180404174102-ef8a98b0bbce
-## explicit
+# github.com/hashicorp/hcl v1.0.0
 github.com/hashicorp/hcl
 github.com/hashicorp/hcl/hcl/ast
 github.com/hashicorp/hcl/hcl/parser
@@ -61,87 +60,86 @@ github.com/hashicorp/hcl/json/token
 github.com/inconshreveable/mousetrap
 # github.com/kr/pretty v0.1.0
 ## explicit
-# github.com/magiconair/properties v1.8.0
+# github.com/magiconair/properties v1.8.4
 ## explicit
 github.com/magiconair/properties
-# github.com/mattn/go-colorable v0.0.9
+# github.com/mattn/go-colorable v0.1.8
 ## explicit
 github.com/mattn/go-colorable
-# github.com/mattn/go-isatty v0.0.3
-## explicit
+# github.com/mattn/go-isatty v0.0.12
 github.com/mattn/go-isatty
-# github.com/mattn/go-sqlite3 v1.14.0
+# github.com/mattn/go-sqlite3 v1.14.6
 ## explicit
 github.com/mattn/go-sqlite3
-# github.com/mattn/go-xmpp v0.0.0-20190124093244-6093f50721ed
+# github.com/mattn/go-xmpp v0.0.0-20210121082723-b40e1294994d
 ## explicit
 github.com/mattn/go-xmpp
-# github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b
+# github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d
 ## explicit
 github.com/mgutz/ansi
 # github.com/mgutz/logxi v0.0.0-20170321173016-3753102df44e
 ## explicit
 github.com/mgutz/logxi
-# github.com/mitchellh/go-homedir v0.0.0-20161203194507-b8bc1bf76747
-## explicit
+# github.com/mitchellh/go-homedir v1.1.0
 github.com/mitchellh/go-homedir
-# github.com/mitchellh/mapstructure v0.0.0-20180511142126-bb74f1db0675
+# github.com/mitchellh/mapstructure v1.4.1
 ## explicit
 github.com/mitchellh/mapstructure
-# github.com/moul/http2curl v0.0.0-20170919181001-9ac6cf4d929b
+# github.com/moul/http2curl v1.0.0
 ## explicit
-github.com/moul/http2curl
 # github.com/nicksnyder/go-i18n v1.10.1
 ## explicit
-# github.com/parnurzeal/gorequest v0.2.15
+# github.com/parnurzeal/gorequest v0.2.16
 ## explicit
 github.com/parnurzeal/gorequest
-# github.com/pelletier/go-toml v1.2.0
+# github.com/pelletier/go-toml v1.8.1
+## explicit
 github.com/pelletier/go-toml
-# github.com/pkg/errors v0.8.1
+# github.com/pkg/errors v0.9.1
 ## explicit
 github.com/pkg/errors
 # github.com/pmezard/go-difflib v1.0.0
 github.com/pmezard/go-difflib/difflib
-# github.com/sfreiberg/gotwilio v0.0.0-20180612161623-8fb7259ba8bf
+# github.com/sfreiberg/gotwilio v0.0.0-20201211181435-c426a3710ab5
 ## explicit
 github.com/sfreiberg/gotwilio
-# github.com/smartystreets/goconvey v0.0.0-20190306220146-200a235640ff
-## explicit
-# github.com/spf13/afero v1.1.0
+# github.com/spf13/afero v1.5.1
 ## explicit
 github.com/spf13/afero
 github.com/spf13/afero/mem
-# github.com/spf13/cast v1.2.0
+# github.com/spf13/cast v1.3.1
 ## explicit
 github.com/spf13/cast
-# github.com/spf13/cobra v0.0.3
+# github.com/spf13/cobra v1.1.3
 ## explicit
 github.com/spf13/cobra
-# github.com/spf13/jwalterweatherman v0.0.0-20180109140146-7c0cea34c8ec
+# github.com/spf13/jwalterweatherman v1.1.0
 ## explicit
 github.com/spf13/jwalterweatherman
-# github.com/spf13/pflag v1.0.1
-## explicit
+# github.com/spf13/pflag v1.0.5
 github.com/spf13/pflag
-# github.com/spf13/viper v1.0.2
+# github.com/spf13/viper v1.7.1
 ## explicit
 github.com/spf13/viper
 # github.com/stretchr/testify v1.4.0
 ## explicit
 github.com/stretchr/testify/assert
 github.com/stretchr/testify/require
+# github.com/subosito/gotenv v1.2.0
+github.com/subosito/gotenv
 # github.com/ziutek/mymysql v1.5.4
 ## explicit
 # golang.org/x/build v0.0.0-20190314133821-5284462c4bec
 ## explicit
-# golang.org/x/crypto v0.0.0-20190325154230-a5d413f7728c
+# golang.org/x/net v0.0.0-20210119194325-5f4716e94777
 ## explicit
-# golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e
 golang.org/x/net/publicsuffix
-# golang.org/x/sys v0.0.0-20200323222414-85ca7c5b95cd
+# golang.org/x/sys v0.0.0-20210124154548-22da62e12c0c
+## explicit
+golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/unix
-# golang.org/x/text v0.3.1-0.20180807135948-17ff2d5776d2
+# golang.org/x/text v0.3.5
+## explicit
 golang.org/x/text/transform
 golang.org/x/text/unicode/norm
 # gopkg.in/alecthomas/gometalinter.v2 v2.0.12
@@ -156,11 +154,19 @@ gopkg.in/alexcesaro/quotedprintable.v3
 # gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 ## explicit
 gopkg.in/gomail.v2
-# gopkg.in/yaml.v2 v2.2.2
+# gopkg.in/ini.v1 v1.62.0
+## explicit
+gopkg.in/ini.v1
+# gopkg.in/yaml.v2 v2.4.0
 gopkg.in/yaml.v2
-# xorm.io/builder v0.3.7
+# moul.io/http2curl v1.0.0
+## explicit
+moul.io/http2curl
+# xorm.io/builder v0.3.9
+## explicit
 xorm.io/builder
-# xorm.io/core v0.7.2-0.20190928055935-90aeac8d08eb
+# xorm.io/core v0.7.3
+## explicit
 xorm.io/core
 # xorm.io/xorm v1.0.7
 ## explicit

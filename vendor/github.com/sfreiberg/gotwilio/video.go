@@ -42,6 +42,7 @@ type VideoRoomType string
 const (
 	PeerToPeer VideoRoomType = "peer-to-peer"
 	Group      VideoRoomType = "group"
+	GroupSmall VideoRoomType = "group-small"
 )
 
 // VideoCodecs are the supported codecs when
@@ -110,7 +111,7 @@ var DefaultVideoRoomOptions = &createRoomOptions{
 	StatusCallbackMethod:        http.MethodPost,
 	Type:                        Group,
 	UniqueName:                  "",
-	VideoCodecs:                 []VideoCodecs{H264},
+	VideoCodecs:                 []VideoCodecs{H264, VP8},
 }
 
 // ListVideoRoomOptions are the options to query
@@ -257,7 +258,7 @@ func (twilio *Twilio) EndVideoRoom(nameOrSid string) (videoResponse *VideoRespon
 		return videoResponse, exception, err
 	}
 
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode < 200 || res.StatusCode > 299 {
 		exception = new(Exception)
 		err = json.Unmarshal(responseBody, exception)
 

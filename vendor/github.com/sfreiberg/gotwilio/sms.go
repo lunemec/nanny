@@ -17,7 +17,7 @@ type SmsResponse struct {
 	AccountSid  string  `json:"account_sid"`
 	To          string  `json:"to"`
 	From        string  `json:"from"`
-	MediaUrl    string  `json:"media_url"`
+	NumMedia    string  `json:"num_media"`
 	Body        string  `json:"body"`
 	Status      string  `json:"status"`
 	Direction   string  `json:"direction"`
@@ -26,29 +26,64 @@ type SmsResponse struct {
 	Url         string  `json:"uri"`
 }
 
-// Returns SmsResponse.DateCreated as a time.Time object
+// Optional SMS parameters
+var (
+	// Settings for what Twilio should do with addresses in message logs
+	SmsAddressRetentionObfuscate = &Option{"AddressRetention", "obfuscate"}
+	SmsAddressRetentionRetain    = &Option{"AddressRetention", "retain"}
+	// Settings for what Twilio should do with message content in message logs
+	SmsContentRetentionDiscard = &Option{"ContentRetention", "discard"}
+	SmsContentRetentionRetain  = &Option{"ContentRetention", "retain"}
+)
+
+// DateCreatedAsTime returns SmsResponse.DateCreated as a time.Time object
 // instead of a string.
 func (sms *SmsResponse) DateCreatedAsTime() (time.Time, error) {
 	return time.Parse(time.RFC1123Z, sms.DateCreated)
 }
 
-// Returns SmsResponse.DateUpdate as a time.Time object
+// DateUpdateAsTime returns SmsResponse.DateUpdate as a time.Time object
 // instead of a string.
 func (sms *SmsResponse) DateUpdateAsTime() (time.Time, error) {
 	return time.Parse(time.RFC1123Z, sms.DateUpdate)
 }
 
-// Returns SmsResponse.DateSent as a time.Time object
+// DateSentAsTime returns SmsResponse.DateSent as a time.Time object
 // instead of a string.
 func (sms *SmsResponse) DateSentAsTime() (time.Time, error) {
 	return time.Parse(time.RFC1123Z, sms.DateSent)
 }
 
-// SendTextMessage uses Twilio to send a text message.
+func whatsapp(phone string) string {
+	return "whatsapp:" + phone
+}
+
+// SendWhatsApp uses Twilio to send a WhatsApp message.
+// See https://www.twilio.com/docs/sms/whatsapp/tutorial/send-and-receive-media-messages-whatsapp-python
+func (twilio *Twilio) SendWhatsApp(from, to, body, statusCallback, applicationSid string) (smsResponse *SmsResponse, exception *Exception, err error) {
+	return twilio.SendSMS(whatsapp(from), whatsapp(to), body, statusCallback, applicationSid)
+}
+
+// SendWhatsAppMedia uses Twilio to send a WhatsApp message with Media enabled.
+// See https://www.twilio.com/docs/sms/whatsapp/tutorial/send-and-receive-media-messages-whatsapp-python
+func (twilio *Twilio) SendWhatsAppMedia(from, to, body string, mediaURL []string, statusCallback, applicationSid string) (smsResponse *SmsResponse, exception *Exception, err error) {
+	formValues := initFormValues(whatsapp(to), body, mediaURL, statusCallback, applicationSid)
+	formValues.Set("From", whatsapp(from))
+
+	return twilio.sendMessage(formValues)
+}
+
+// SendSMS uses Twilio to send a text message.
 // See http://www.twilio.com/docs/api/rest/sending-sms for more information.
-func (twilio *Twilio) SendSMS(from, to, body, statusCallback, applicationSid string) (smsResponse *SmsResponse, exception *Exception, err error) {
-	formValues := initFormValues(to, body, "", statusCallback, applicationSid)
+func (twilio *Twilio) SendSMS(from, to, body, statusCallback, applicationSid string, opts ...*Option) (smsResponse *SmsResponse, exception *Exception, err error) {
+	formValues := initFormValues(to, body, nil, statusCallback, applicationSid)
 	formValues.Set("From", from)
+
+	for _, opt := range opts {
+		if opt != nil {
+			formValues.Set(opt.Key, opt.Value)
+		}
+	}
 
 	smsResponse, exception, err = twilio.sendMessage(formValues)
 	return
@@ -87,17 +122,27 @@ func (twilio *Twilio) GetSMS(sid string) (smsResponse *SmsResponse, exception *E
 // SendSMSWithCopilot uses Twilio Copilot to send a text message.
 // See https://www.twilio.com/docs/api/rest/sending-messages-copilot
 func (twilio *Twilio) SendSMSWithCopilot(messagingServiceSid, to, body, statusCallback, applicationSid string) (smsResponse *SmsResponse, exception *Exception, err error) {
-	formValues := initFormValues(to, body, "", statusCallback, applicationSid)
+	formValues := initFormValues(to, body, nil, statusCallback, applicationSid)
 	formValues.Set("MessagingServiceSid", messagingServiceSid)
 
 	smsResponse, exception, err = twilio.sendMessage(formValues)
 	return
 }
 
-// SendMultimediaMessage uses Twilio to send a multimedia message.
-func (twilio *Twilio) SendMMS(from, to, body, mediaUrl, statusCallback, applicationSid string) (smsResponse *SmsResponse, exception *Exception, err error) {
+// SendMMS uses Twilio to send a multimedia message.
+func (twilio *Twilio) SendMMS(from, to, body string, mediaUrl []string, statusCallback, applicationSid string) (smsResponse *SmsResponse, exception *Exception, err error) {
 	formValues := initFormValues(to, body, mediaUrl, statusCallback, applicationSid)
 	formValues.Set("From", from)
+
+	smsResponse, exception, err = twilio.sendMessage(formValues)
+	return
+}
+
+// SendMMSWithCopilot uses Twilio Copilot to send a multimedia message.
+// See https://www.twilio.com/docs/api/rest/sending-messages-copilot
+func (twilio *Twilio) SendMMSWithCopilot(messagingServiceSid, to, body string, mediaUrl []string, statusCallback, applicationSid string) (smsResponse *SmsResponse, exception *Exception, err error) {
+	formValues := initFormValues(to, body, mediaUrl, statusCallback, applicationSid)
+	formValues.Set("MessagingServiceSid", messagingServiceSid)
 
 	smsResponse, exception, err = twilio.sendMessage(formValues)
 	return
@@ -133,14 +178,16 @@ func (twilio *Twilio) sendMessage(formValues url.Values) (smsResponse *SmsRespon
 }
 
 // Form values initialization
-func initFormValues(to, body, mediaUrl, statusCallback, applicationSid string) url.Values {
+func initFormValues(to, body string, mediaUrl []string, statusCallback, applicationSid string) url.Values {
 	formValues := url.Values{}
 
 	formValues.Set("To", to)
 	formValues.Set("Body", body)
 
-	if mediaUrl != "" {
-		formValues.Set("MediaUrl", mediaUrl)
+	if len(mediaUrl) > 0 {
+		for _, value := range mediaUrl {
+			formValues.Add("MediaUrl", value)
+		}
 	}
 
 	if statusCallback != "" {
