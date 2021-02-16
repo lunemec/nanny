@@ -207,7 +207,7 @@ make buildah                          Build a Nanny Docker conainer using Builda
 make run                              Run Nanny in dev mode, all logging and race detector ON.
 make test                             Run tests.
 make vet                              Run go vet.
-make lint                             Run gometalinter (you have to install it).
+make lint                             Run golangci-lint (you have to install it).
 ```
 
 ## FAQ
