@@ -489,11 +489,14 @@ func TestTimerMarshalJSONNextSignal(t *testing.T) {
 	dur := time.Duration(3) * time.Second
 	expectedEnd := time.Now().Add(dur)
 
-	n.Handle(nanny.Signal{
+	err := n.Handle(nanny.Signal{
 		Name:       signalName,
 		Notifier:   dummy,
 		NextSignal: dur,
 	})
+	if err != nil {
+		t.Errorf("expected to handle signal without error, got error: %+v \n", err)
+	}
 
 	timer := n.GetTimer(signalName)
 
@@ -517,17 +520,24 @@ func TestTimerMarshalJSONNextSignal(t *testing.T) {
 
 	expectedEnd = time.Now().Add(dur)
 
-	n.Handle(nanny.Signal{
+	err = n.Handle(nanny.Signal{
 		Name:       signalName,
 		Notifier:   dummy,
 		NextSignal: dur,
 	})
+	if err != nil {
+		t.Errorf("expected to handle signal without error, got error: %+v \n", err)
+	}
+
 	timer = n.GetTimer(signalName)
 
 	jsonBytes, _ = json.Marshal(timer)
 
 	// Unmarshal the jsonBytes
-	json.Unmarshal(jsonBytes, &jsonSignal)
+	err = json.Unmarshal(jsonBytes, &jsonSignal)
+	if err != nil {
+		t.Errorf("expected to unmarshal json without error, got error: %+v \n", err)
+	}
 	parsedNextSignal, err = time.Parse(time.RFC3339, jsonSignal.NextSignal)
 	if err != nil {
 		t.Errorf("Expected time.Parse without error but got error, got: %v\n", err)

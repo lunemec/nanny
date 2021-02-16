@@ -42,7 +42,7 @@ vet:
 	go vet ./...
 
 lint:
-	gometalinter.v2 --deadline 120s --vendor ./...
+	golangci-lint run --timeout=60s
 
 clean:
 	rm nanny || true
