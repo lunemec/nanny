@@ -22,12 +22,12 @@ build:
 	govvv build -pkg nanny/pkg/version
 
 docker:
-	docker build -t nanny:$(VERSION) .
-	docker tag nanny:$(VERSION) nanny:latest
+	docker build --no-cache -t lunemec/nanny:$(VERSION) .
+	docker tag nanny:$(VERSION) lunemec/nanny:latest
 
 buildah:
-	buildah bud -t docker.io/library/nanny:$(VERSION) .
-	buildah tag docker.io/library/nanny:$(VERSION) docker.io/library/nanny:latest
+	buildah bud --no-cache -t docker.io/library/lunemec/nanny:$(VERSION) .
+	buildah tag docker.io/library/lunemec/nanny:$(VERSION) docker.io/library/lunemec/nanny:latest
 
 package: clean build
 	scripts/package.sh

@@ -10,5 +10,3 @@ services:
       NANNY_ADDR: 0.0.0.0:8080
       # Uncomment to enable debugging messages:
       LOGXI: '*'
-    volumes:
-      - ${PWD}/nanny.toml:/opt/nanny.toml
