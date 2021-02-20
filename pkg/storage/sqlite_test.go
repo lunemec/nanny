@@ -27,7 +27,6 @@ func TestSQLiteDataConsistency(t *testing.T) {
 	signal := storage.Signal{
 		Name:       "test",
 		NextSignal: time.Now(),
-		AllClear:   false,
 		Notifier:   "stderr",
 		Meta:       map[string]string{"meta": "data"},
 	}
