@@ -105,18 +105,16 @@ func loadStorage(n *nanny.Nanny, notifiers notifiers, store storage.Storage) {
 
 	// Create nanny timers from persisted signals.
 	for _, signal := range signals {
-		// If NextSignal would be in the past, notify user, and delete it if all-clear notification is not activated.
+		// If NextSignal would be in the past, notify user, and delete it.
 		if signal.NextSignal.Before(time.Now()) {
 			msg := "Found previously stored notifier that is stale. Please check " +
 				"this program manually."
 			log.Warn(msg, "program", signal.Name, "should_notify", signal.NextSignal.String())
-			if !signal.AllClear {
-				err = store.Remove(signal)
-				if err != nil {
-					log.Error("Unable to remove stale signal.", "err", err)
-				}
-				continue
+			err = store.Remove(signal)
+			if err != nil {
+				log.Error("Unable to remove stale signal.", "err", err)
 			}
+			continue
 		}
 
 		notif, ok := notifiers[signal.Notifier]
@@ -156,11 +154,9 @@ func loadStorage(n *nanny.Nanny, notifiers notifiers, store storage.Storage) {
 // storage.
 func makeCallbackFunc(store storage.Storage) func(*nanny.Signal) {
 	return func(signal *nanny.Signal) {
-		if !signal.AllClear {
-			err := store.Remove(storage.Signal{Name: signal.Name})
-			if err != nil {
-				log.Error("Error removing signal from storage.", "err", err, "signal", signal)
-			}
+		err := store.Remove(storage.Signal{Name: signal.Name})
+		if err != nil {
+			log.Error("Error removing signal from storage.", "err", err, "signal", signal)
 		}
 	}
 }
@@ -287,11 +283,9 @@ func constructSignal(jsonSignal Signal, notif notifier.Notifier, store storage.S
 		Meta:       jsonSignal.Meta,
 
 		CallbackFunc: func(s *nanny.Signal) {
-			if !s.AllClear {
-				err := store.Remove(storage.Signal{Name: s.Name})
-				if err != nil {
-					log.Error("Error removing signal from storage.", "err", err, "signal", jsonSignal)
-				}
+			err := store.Remove(storage.Signal{Name: s.Name})
+			if err != nil {
+				log.Error("Error removing signal from storage.", "err", err, "signal", jsonSignal)
 			}
 		},
 	}
