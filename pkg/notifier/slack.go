@@ -54,6 +54,36 @@ func (s *slackNotifier) Notify(msg Message) error {
 	return nil
 }
 
+// NotifyAllClear implements Notifier interface for slack.
+func (s *slackNotifier) NotifyAllClear(msg Message) error {
+	msgText := msg.FormatAllClear()
+	hexGreen := "#00FF00"
+	attachment := slack.Attachment{
+		Fallback: &msgText,
+		Text:     &msgText,
+		Color:    &hexGreen,
+	}
+	if len(msg.Meta) != 0 {
+		for key, value := range msg.Meta {
+			attachment.AddField(slack.Field{Title: key, Value: value})
+		}
+	}
+	payload := slack.Payload{
+		Username:    "Nanny",
+		IconEmoji:   ":baby_chick:",
+		Attachments: []slack.Attachment{attachment},
+	}
+	errs := slack.Send(s.webhookURL, "", payload)
+	if len(errs) > 0 {
+		errStr := ""
+		for _, err := range errs {
+			errStr = fmt.Sprintf("%s, ", err)
+		}
+		return errors.New(errStr)
+	}
+	return nil
+}
+
 func (s *slackNotifier) String() string {
 	return "slack"
 }

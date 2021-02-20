@@ -25,6 +25,13 @@ func (n *sentry) Notify(msg Message) error {
 	return nil
 }
 
+// NotifyAllClear implements Notifier interface for sentry.
+func (n *sentry) NotifyAllClear(msg Message) error {
+	// This may block since it is run in its own goroutine.
+	n.cli.CaptureMessageAndWait(msg.FormatAllClear(), msg.Meta)
+	return nil
+}
+
 func (n *sentry) String() string {
 	return "sentry"
 }

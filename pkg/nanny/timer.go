@@ -54,14 +54,24 @@ func newTimer(s validSignal, nanny *Nanny) *Timer {
 // Reset updates the nannyTimers signal to reset the timer
 func (nt *Timer) Reset(vs validSignal) {
 	nt.lock.Lock()
-	// Send all-clear notification if requested
-	if nt.signal.AllClear && time.Now().After(nt.end) {
-		nt.lock.Unlock()
-		nt.notify(true)
-		nt.lock.Lock()
-	}
 	defer nt.lock.Unlock()
 
+	nt.signal.Notifier = vs.Notifier
+	nt.signal.NextSignal = vs.NextSignal
+	nt.signal.AllClear = vs.AllClear
+	nt.signal.Meta = vs.Meta
+	nt.end = time.Now().Add(vs.NextSignal)
+	nt.timer.Reset(vs.NextSignal)
+}
+
+// ResetAllClear updates the nannyTimers signal to reset the timer
+func (nt *Timer) ResetAllClear(vs validSignal) {
+	nt.notifyAllClear()
+
+	nt.lock.Lock()
+	defer nt.lock.Unlock()
+
+	nt.signal.Notifier = vs.Notifier
 	nt.signal.NextSignal = vs.NextSignal
 	nt.signal.AllClear = vs.AllClear
 	nt.signal.Meta = vs.Meta
@@ -70,7 +80,7 @@ func (nt *Timer) Reset(vs validSignal) {
 }
 
 func (nt *Timer) onExpire() {
-	err := nt.notify(false)
+	err := nt.notify()
 	if err != nil {
 		// Add context to the error message and call ErrorFunc.
 		err = errors.Wrapf(err, "error calling notifier: %T with signal: %+v", nt.signal.Notifier, nt.signal)
@@ -90,7 +100,7 @@ func (nt *Timer) onExpire() {
 	nt.lock.Unlock()
 }
 
-func (nt *Timer) notify(isAllClear bool) error {
+func (nt *Timer) notify() error {
 	nt.lock.Lock()
 	defer nt.lock.Unlock()
 	name := "Nanny"
@@ -102,7 +112,22 @@ func (nt *Timer) notify(isAllClear bool) error {
 		Nanny:      name,
 		Program:    nt.signal.Name,
 		NextSignal: nt.signal.NextSignal,
-		IsAllClear: isAllClear,
+		Meta:       nt.signal.Meta,
+	})
+}
+
+func (nt *Timer) notifyAllClear() error {
+	nt.lock.Lock()
+	defer nt.lock.Unlock()
+	name := "Nanny"
+	if nt.nanny.Name != "" {
+		name = nt.nanny.Name
+	}
+
+	return nt.signal.Notifier.NotifyAllClear(notifier.Message{
+		Nanny:      name,
+		Program:    nt.signal.Name,
+		NextSignal: nt.signal.NextSignal,
 		Meta:       nt.signal.Meta,
 	})
 }

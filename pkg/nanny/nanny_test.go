@@ -27,6 +27,14 @@ func (d *DummyNotifier) Notify(msg notifier.Message) error {
 	return nil
 }
 
+// NotifyAllClear stores `msg` in the DummyNotifier.
+func (d *DummyNotifier) NotifyAllClear(msg notifier.Message) error {
+	d.lock.Lock()
+	d.notifyMsg = msg
+	d.lock.Unlock()
+	return nil
+}
+
 func (d *DummyNotifier) String() string {
 	return "dummy"
 }
@@ -44,6 +52,11 @@ type DummyNotifierWithError struct{}
 
 // Notify satisfies Notifier interface.
 func (d *DummyNotifierWithError) Notify(msg notifier.Message) error {
+	return fmt.Errorf("error")
+}
+
+// NotifyAllClear satisfies Notifier interface.
+func (d *DummyNotifierWithError) NotifyAllClear(msg notifier.Message) error {
 	return fmt.Errorf("error")
 }
 
@@ -390,7 +403,7 @@ func TestNannyAllClear(t *testing.T) {
 		t.Errorf("if all-clear is activated dummy msg should contain a message while time is not yet expired: %v\n", dummyMsg)
 	}
 
-	msg := dummyMsg.Format()
+	msg := dummyMsg.FormatAllClear()
 	if !strings.Contains(msg, "did hear") {
 		t.Errorf("dummy msg should contain all-clear: %v\n", dummyMsg)
 	}
