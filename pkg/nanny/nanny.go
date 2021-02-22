@@ -28,6 +28,7 @@ type Signal struct {
 	Name       string
 	Notifier   notifier.Notifier // What notifier to use.
 	NextSignal time.Duration     // Notify after reaching this timeout.
+	AllClear   bool              // Activate optional all-clear notification
 	Meta       map[string]string
 
 	// Optional callback function that will be called when notifier is called.
@@ -81,7 +82,12 @@ func (n *Nanny) handle(s validSignal) error {
 
 	if timer != nil {
 		// Timer exists, reset the timer to the new signal value.
-		timer.Reset(s)
+		// Send all-clear notification if requested
+		if s.AllClear && time.Now().After(timer.end) {
+			timer.ResetAllClear(s)
+		} else {
+			timer.Reset(s)
+		}
 	} else {
 		// No timer is registered for this program, create it.
 		n.SetTimer(s.Name, newTimer(s, n))

@@ -8,6 +8,7 @@ import (
 // Notifier interface is used by Nanny to notify user on different outputs/services.
 type Notifier interface {
 	Notify(Message) error
+	NotifyAllClear(Message) error
 	String() string
 }
 
@@ -25,4 +26,8 @@ type Message struct {
 // or from API.
 func (m *Message) Format() string {
 	return fmt.Sprintf("%s: I did not hear from \"%s\" in %s!", m.Nanny, m.Program, m.NextSignal)
+}
+
+func (m *Message) FormatAllClear() string {
+	return fmt.Sprintf("%s: I did hear from \"%s\"!", m.Nanny, m.Program)
 }

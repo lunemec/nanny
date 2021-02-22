@@ -37,8 +37,10 @@ type Signal struct {
 	Notifier string `json:"notifier"` // What notifier to use.
 	// After how many seconds to expect next call.
 	// May contain "10s", "1h": https://golang.org/pkg/time/#ParseDuration
-	NextSignal string            `json:"next_signal"`
-	Meta       map[string]string `json:"meta"` // Metadata for this signal, may contain custom data.
+	NextSignal string `json:"next_signal"`
+	// Activate optional all-clear notification that is sent when a call is received after an alert was sent
+	AllClear bool              `json:"all_clear"`
+	Meta     map[string]string `json:"meta"` // Metadata for this signal, may contain custom data.
 }
 
 // Error represents JSON error to be sent to user.
@@ -125,6 +127,7 @@ func loadStorage(n *nanny.Nanny, notifiers notifiers, store storage.Storage) {
 			Name:       signal.Name,
 			Notifier:   notif,
 			NextSignal: time.Until(signal.NextSignal),
+			AllClear:   signal.AllClear,
 			Meta:       signal.Meta,
 
 			CallbackFunc: callbackFunc,
@@ -140,6 +143,7 @@ func loadStorage(n *nanny.Nanny, notifiers notifiers, store storage.Storage) {
 		log.Info("Loaded persisted signal successful.",
 			"program", signal.Name,
 			"next_signal", s.NextSignal.String(),
+			"all_clear", s.AllClear,
 			"meta", s.Meta,
 			"notifier", signal.Notifier)
 	}
@@ -232,6 +236,7 @@ func signalHandler(n *nanny.Nanny, notifiers notifiers, store storage.Storage, w
 		Name:       s.Name,
 		Notifier:   signal.Notifier,
 		NextSignal: time.Now().Add(s.NextSignal),
+		AllClear:   s.AllClear,
 		Meta:       s.Meta,
 	})
 
@@ -274,6 +279,7 @@ func constructSignal(jsonSignal Signal, notif notifier.Notifier, store storage.S
 		Name:       constructName(jsonSignal.Name, req),
 		Notifier:   notif,
 		NextSignal: constructDuration(jsonSignal.NextSignal),
+		AllClear:   jsonSignal.AllClear,
 		Meta:       jsonSignal.Meta,
 
 		CallbackFunc: func(s *nanny.Signal) {

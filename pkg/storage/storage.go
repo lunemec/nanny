@@ -19,5 +19,6 @@ type Signal struct {
 	Name       string `xorm:"pk"`
 	Notifier   string
 	NextSignal time.Time
+	AllClear   bool `xorm:"default 0"`
 	Meta       map[string]string
 }

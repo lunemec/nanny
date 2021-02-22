@@ -24,9 +24,9 @@ $ LOGXI=* ./nanny
 ```
 Call it via curl:
 ```bash
-curl http://localhost:8080/api/v1/signal --data '{ "name": "my awesome program", "notifier": "stderr", "next_signal": "5s" }'
+curl http://localhost:8080/api/v1/signal --data '{ "name": "my awesome program", "notifier": "stderr", "next_signal": "5s", "all_clear": false }'
 ```
-With this call, you tell nanny that if program named `my awesome program` does not call again within `next_signal` (5s), it should notify you using `stderr` notifier. Additionally, nanny appends the IP or `X-Forwarded-For` HTTP header to the program name. You can disable this behaviour by sending a `X-Dont-Modify-Name` along with the request.
+With this call, you tell nanny that if program named `my awesome program` does not call again within `next_signal` (5s), it should notify you using `stderr` notifier. Additionally, nanny appends the IP or `X-Forwarded-For` HTTP header to the program name. You can disable this behaviour by sending a `X-Dont-Modify-Name` along with the request. If you activate `all_clear` you will get an additional notification when the program sends a signal to nanny for the first time after an alert was sent.
 
 After 5s pass, nanny prints to *stderr*:
 ```bash
@@ -109,6 +109,7 @@ NANNY_NAME="custom name" NANNY_ADDR="localhost:9090" LOGXI=* ./nanny
     "name": "name of monitored program",
     "notifier": "stderr", # You can use only enabled notifiers, see config.
     "next_signal": "55s", # When to expect next call (or notify).
+    "all_clear": false,   # Optional all-clear notification when a call is received after an alert was sent
     "meta": {             # Meta can contain any string:string values,
       "extra": "data"     # they are passed to the notifiers and will eventually
     }                     # be passed to the user.
@@ -149,17 +150,19 @@ NANNY_NAME="custom name" NANNY_ADDR="localhost:9090" LOGXI=* ./nanny
       "nanny_name": "Nanny",
       "signals": [
         {
-          "name": "my awesome program",
-          "notifier": "stderr",
+          "name":"my awesome program",
+          "notifier":"stderr",
           "next_signal":"2018-08-21T10:00:15+02:00",
+          "all_clear":false,
           "meta": {
             "current-step": "loading"
           }
         },
         {
-          "name": "my awesome program without meta",
-          "notifier": "email",
-          "next_signal":"2018-08-21T09:45:00+02:00"
+          "name":"my awesome program without meta",
+          "notifier":"email",
+          "next_signal":"2018-08-21T09:45:00+02:00",
+          "all_clear":false
         }
       ]
     }
@@ -190,7 +193,7 @@ By default, nanny logs only errors. To enable more verbose logging, use `LOGXI=*
 You can add extra meta-data to the API calls, which will be passed to all the notifiers. Metadata must conform to type `map[string]string`.
 
 ```bash
-curl http://localhost:8080/api/v1/signal --data '{ "name": "my program", "notifier": "stderr", "next_signal": "5s", "meta":{"custom": "metadata"} }'
+curl http://localhost:8080/api/v1/signal --data '{ "name": "my program", "notifier": "stderr", "next_signal": "5s", "all_clear": false, "meta":{"custom": "metadata"} }'
 ```
 
 These metadata will be displayed in the messages for stderr and email, and in tags for sentry.

@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"nanny/pkg/storage"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,6 +13,7 @@ import (
 	"nanny/api"
 	"nanny/pkg/closer"
 	"nanny/pkg/notifier"
+	"nanny/pkg/storage"
 
 	log "github.com/mgutz/logxi"
 	"github.com/pkg/errors"
@@ -41,15 +41,16 @@ type Stderr struct {
 
 // Email notifier config.
 type Email struct {
-	Enabled      bool
-	From         string
-	To           []string
-	Subject      string
-	Body         string
-	SMTPServer   string `mapstructure:"smtp_server"`
-	SMTPPort     int    `mapstructure:"smtp_port"`
-	SMTPUser     string `mapstructure:"smtp_user"`
-	SMTPPassword string `mapstructure:"smtp_password"`
+	Enabled         bool
+	From            string
+	To              []string
+	Subject         string
+	SubjectAllClear string `mapstructure:"subject_all_clear"`
+	Body            string
+	SMTPServer      string `mapstructure:"smtp_server"`
+	SMTPPort        int    `mapstructure:"smtp_port"`
+	SMTPUser        string `mapstructure:"smtp_user"`
+	SMTPPassword    string `mapstructure:"smtp_password"`
 }
 
 // Sentry notifier config.
@@ -118,6 +119,7 @@ func nannyCheck(nanny string) {
 		Name:       config.Name,
 		Notifier:   otherNannyNotifier,
 		NextSignal: "1s",
+		AllClear:   false,
 		Meta:       map[string]string{"addr": config.Addr},
 	}
 	data, err := json.Marshal(&signal)
@@ -197,14 +199,15 @@ func makeNotifiers() (map[string]notifier.Notifier, error) {
 	}
 	if config.Email.Enabled {
 		notifiers["email"] = &notifier.Email{
-			From:     config.Email.From,
-			To:       config.Email.To,
-			Subject:  config.Email.Subject,
-			Body:     config.Email.Body,
-			Server:   config.Email.SMTPServer,
-			Port:     config.Email.SMTPPort,
-			User:     config.Email.SMTPUser,
-			Password: config.Email.SMTPPassword,
+			From:            config.Email.From,
+			To:              config.Email.To,
+			Subject:         config.Email.Subject,
+			SubjectAllClear: config.Email.SubjectAllClear,
+			Body:            config.Email.Body,
+			Server:          config.Email.SMTPServer,
+			Port:            config.Email.SMTPPort,
+			User:            config.Email.SMTPUser,
+			Password:        config.Email.SMTPPassword,
 		}
 	}
 	if config.Sentry.Enabled {

@@ -18,6 +18,13 @@ func (n *StdErr) Notify(msg Message) error {
 	return errors.Wrap(err, "unable to notify via stderr")
 }
 
+// NotifyAllClear to stderr.
+func (n *StdErr) NotifyAllClear(msg Message) error {
+	text := fmt.Sprintf("%s: %s (Meta: %v)\n", time.Now().Format(time.RFC3339), msg.FormatAllClear(), msg.Meta)
+	_, err := os.Stderr.WriteString(text)
+	return errors.Wrap(err, "unable to notify via stderr")
+}
+
 // MarshalJSON marshals the stderr notifier into a "stderr" string
 func (n *StdErr) String() string {
 	return "stderr"

@@ -41,13 +41,13 @@ func (d *sqliteDB) Load() ([]Signal, error) {
 }
 
 func (d *sqliteDB) Save(s Signal) error {
-	sql := "INSERT OR REPLACE INTO `signal` (name, notifier, next_signal, meta) VALUES (?, ?, ?, ?)"
+	sql := "INSERT OR REPLACE INTO `signal` (name, notifier, next_signal, all_clear, meta) VALUES (?, ?, ?, ?, ?)"
 
 	meta, err := json.Marshal(s.Meta)
 	if err != nil {
 		return errors.Wrap(err, "unable to jsonify signal metadata")
 	}
-	_, err = d.db.Exec(sql, s.Name, s.Notifier, s.NextSignal.UTC(), meta)
+	_, err = d.db.Exec(sql, s.Name, s.Notifier, s.NextSignal.UTC(), s.AllClear, meta)
 	if err != nil {
 		return errors.Wrapf(err, "unable to save signal to sqlite: %+v", s)
 	}

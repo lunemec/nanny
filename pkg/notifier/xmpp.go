@@ -76,6 +76,34 @@ func (x *xmppNotifier) Notify(msg Message) error {
 	return nil
 }
 
+// NotifyAllClear implements the Notifier interface for xmpp.
+func (x *xmppNotifier) NotifyAllClear(msg Message) error {
+	options := xmpp.Options{
+		Host:     x.Server + ":" + strconv.Itoa(x.Port),
+		User:     x.User,
+		Password: x.Password,
+		Resource: x.Resource,
+		NoTLS:    x.NoTLS,
+	}
+
+	client, err := options.NewClient()
+	if err != nil {
+		return errors.Wrap(err, "unable to connect to xmpp server")
+	}
+
+	for _, remoteAddress := range x.To {
+		_, err = client.Send(xmpp.Chat{
+			Remote: remoteAddress,
+			Text:   fmt.Sprintf("%s (Meta: %v)", msg.FormatAllClear(), msg.Meta),
+		})
+		if err != nil {
+			return errors.Wrap(err, "unable to notify via xmpp")
+		}
+	}
+
+	return nil
+}
+
 func (x *xmppNotifier) String() string {
 	return "xmpp"
 }

@@ -27,6 +27,14 @@ func (d *DummyNotifier) Notify(msg notifier.Message) error {
 	return nil
 }
 
+// NotifyAllClear stores `msg` in the DummyNotifier.
+func (d *DummyNotifier) NotifyAllClear(msg notifier.Message) error {
+	d.lock.Lock()
+	d.notifyMsg = msg
+	d.lock.Unlock()
+	return nil
+}
+
 func (d *DummyNotifier) String() string {
 	return "dummy"
 }
@@ -44,6 +52,11 @@ type DummyNotifierWithError struct{}
 
 // Notify satisfies Notifier interface.
 func (d *DummyNotifierWithError) Notify(msg notifier.Message) error {
+	return fmt.Errorf("error")
+}
+
+// NotifyAllClear satisfies Notifier interface.
+func (d *DummyNotifierWithError) NotifyAllClear(msg notifier.Message) error {
 	return fmt.Errorf("error")
 }
 
@@ -346,6 +359,69 @@ func TestNannyTimer(t *testing.T) {
 	msg := dummyMsg.Format()
 	if strings.Contains(msg, "2s") {
 		t.Errorf("dummy msg should not contain 2s after NextSignal time expired: %v\n", dummyMsg)
+	}
+}
+
+func TestNannyAllClear(t *testing.T) {
+	n := nanny.Nanny{Name: "test nanny nannyAllClear"}
+	dummy := &DummyNotifier{}
+	signal := nanny.Signal{
+		Name:         "test nannyAllClear",
+		Notifier:     dummy,
+		NextSignal:   time.Duration(2) * time.Second,
+		AllClear:     true,
+		CallbackFunc: func(s *nanny.Signal) {},
+	}
+	// Send first signal (next_signal: 2s)
+	err := n.Handle(signal)
+	if err != nil {
+		t.Errorf("n.Signal should not return error, got: %v\n", err)
+	}
+	// Sleep for 1s
+	time.Sleep(time.Duration(1) * time.Second)
+	// Send second signal (next_signal: 2s)
+	err = n.Handle(signal)
+	if err != nil {
+		t.Errorf("n.Signal should not return error, got: %v\n", err)
+	}
+	// Sleep for 1s
+	time.Sleep(time.Duration(1) * time.Second)
+	// Send third signal (next_signal: 2s)
+	err = n.Handle(signal)
+	if err != nil {
+		t.Errorf("n.Signal should not return error, got: %v\n", err)
+	}
+	// Trigger the first signal's error by waiting more than 2s.
+	time.Sleep(time.Duration(2)*time.Second + time.Duration(100)*time.Millisecond)
+	dummyMsg := dummy.NotifyMsg()
+	if dummyMsg.Program == "" {
+		t.Errorf("dummy msg should not be empty after NextSignal time expires: %v\n", dummyMsg)
+	}
+	if !strings.Contains(dummyMsg.Format(), "2s") {
+		t.Errorf("dummy msg should contain 2s after NextSignal time expired: %v\n", dummyMsg)
+	}
+	// Send fourth signal (next_signal: 2s)
+	err = n.Handle(signal)
+	if err != nil {
+		t.Errorf("n.Signal should not return error, got: %v\n", err)
+	}
+	// Check if all-clear notification was sent
+	time.Sleep(time.Duration(100) * time.Millisecond)
+	dummyMsg = dummy.NotifyMsg()
+	if dummyMsg.Program == "" {
+		t.Errorf("dummy msg should not be empty: %v\n", dummyMsg)
+	}
+	if !strings.Contains(dummyMsg.FormatAllClear(), "did hear") {
+		t.Errorf("dummy msg should contain all-clear: %v\n", dummyMsg)
+	}
+	// After 2s, DummyNotifier should return error.
+	time.Sleep(time.Duration(2) * time.Second)
+	dummyMsg = dummy.NotifyMsg()
+	if dummyMsg.Program == "" {
+		t.Errorf("dummy msg should not be empty after NextSignal time expired: %v\n", dummyMsg)
+	}
+	if !strings.Contains(dummyMsg.Format(), "2s") {
+		t.Errorf("dummy msg should contain 2s after NextSignal time expired: %v\n", dummyMsg)
 	}
 }
 

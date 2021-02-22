@@ -34,6 +34,14 @@ func (d *DummyNotifier) Notify(msg notifier.Message) error {
 	return nil
 }
 
+// NotifyAllClear stores `msg` in the DummyNotifier.
+func (d *DummyNotifier) NotifyAllClear(msg notifier.Message) error {
+	d.lock.Lock()
+	d.notifyMsg = msg
+	d.lock.Unlock()
+	return nil
+}
+
 func (d *DummyNotifier) String() string {
 	return "dummy"
 }

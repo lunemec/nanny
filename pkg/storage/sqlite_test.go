@@ -58,6 +58,10 @@ func compareSignals(t *testing.T, this storage.Signal, other storage.Signal) {
 		t.Errorf("saved signal is not equal to loaded signal, saved: %+v, loaded: %+v", this.NextSignal, other.NextSignal)
 	}
 
+	if this.AllClear != other.AllClear {
+		t.Errorf("saved signal is not equal to loaded signal, saved: %+v, loaded: %+v", this.AllClear, other.AllClear)
+	}
+
 	if this.Notifier != other.Notifier {
 		t.Errorf("saved signal is not equal to loaded signal, saved: %+v, loaded: %+v", this.Notifier, other.Notifier)
 	}
