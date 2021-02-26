@@ -12,6 +12,7 @@ Nanny can notify you via these channels (for now):
 * sentry
 * sms (twilio)
 * slack (webhook)
+* generic webhook (HTTP POST callback)
 * xmpp (jabber)
 
 ## Example

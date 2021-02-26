@@ -35,6 +35,13 @@ to=""
 enabled=false
 webhookURL=""
 
+[webhook]
+enabled=false
+webhookURL="https://webhook.somewhere.com/webhook"
+webhookURL_all_clear="https://webhook.somewhere.com/webhook"
+webhookSecret=""
+allowInsecureTLS=false
+
 [xmpp]
 enabled=false
 to=["someone@xmpp.somewhere.com"]
