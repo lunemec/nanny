@@ -18,7 +18,7 @@ type webhookNotifier struct {
 	WebhookURL         string
 	WebhookURLAllClear string
 	WebhookSecret      string
-	AllowInsecureTLS   bool
+	httpClient         *http.Client
 }
 
 func ComputeHmacSha256(secret string, payload []byte) string {
@@ -32,6 +32,7 @@ func ComputeHmacSha256(secret string, payload []byte) string {
 func NewWebhook(WebhookURL string,
 	WebhookURLAllClear string,
 	WebhookSecret string,
+	RequestTimeout time.Duration,
 	AllowInsecureTLS bool) (Notifier, error) {
 
 	if WebhookURL == "" {
@@ -41,11 +42,19 @@ func NewWebhook(WebhookURL string,
 		return nil, errors.New("Unable to initialize webhook: webhookURL_all_clear is empty")
 	}
 
+	httpClient := &http.Client{Timeout: time.Second * RequestTimeout}
+	if AllowInsecureTLS {
+		transport := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		httpClient = &http.Client{Transport: transport, Timeout: time.Second * RequestTimeout}
+	}
+
 	return &webhookNotifier{
 		WebhookURL,
 		WebhookURLAllClear,
 		WebhookSecret,
-		AllowInsecureTLS,
+		httpClient,
 	}, nil
 }
 
@@ -68,14 +77,7 @@ func (w *webhookNotifier) Notify(msg Message) error {
 		request.Header.Set("X-HMAC-SHA256", signature)
 	}
 
-	client := &http.Client{Timeout: time.Second * 10}
-	if w.AllowInsecureTLS {
-		transport := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		}
-		client = &http.Client{Transport: transport, Timeout: time.Second * 10}
-	}
-	_, err = client.Do(request)
+	_, err = w.httpClient.Do(request)
 	if err != nil {
 		return errors.Wrap(err, "unable to notify via webhook")
 	}
@@ -102,14 +104,7 @@ func (w *webhookNotifier) NotifyAllClear(msg Message) error {
 		request.Header.Set("X-HMAC-SHA256", signature)
 	}
 
-	client := &http.Client{Timeout: time.Second * 10}
-	if w.AllowInsecureTLS {
-		transport := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		}
-		client = &http.Client{Transport: transport, Timeout: time.Second * 10}
-	}
-	_, err = client.Do(request)
+	_, err = w.httpClient.Do(request)
 	if err != nil {
 		return errors.Wrap(err, "unable to notify via webhook")
 	}

@@ -79,10 +79,11 @@ type Slack struct {
 // Webhook config.
 type Webhook struct {
 	Enabled            bool
-	WebhookURL         string
-	WebhookURLAllClear string `mapstructure:"webhookURL_all_clear"`
-	WebhookSecret      string
-	AllowInsecureTLS   bool
+	WebhookURL         string        `mapstructure:"webhook_url"`
+	WebhookURLAllClear string        `mapstructure:"webhook_url_all_clear"`
+	WebhookSecret      string        `mapstructure:"webhook_secret"`
+	RequestTimeout     time.Duration `mapstructure:"request_timeout"`
+	AllowInsecureTLS   bool          `mapstructure:"allow_insecure_tls"`
 }
 
 // Xmpp config.
@@ -248,6 +249,7 @@ func makeNotifiers() (map[string]notifier.Notifier, error) {
 			config.Webhook.WebhookURL,
 			config.Webhook.WebhookURLAllClear,
 			config.Webhook.WebhookSecret,
+			config.Webhook.RequestTimeout,
 			config.Webhook.AllowInsecureTLS,
 		)
 		if err != nil {
