@@ -8,7 +8,9 @@ VERSION := $(shell cat VERSION)
 all:
 	@printf $(header) "Build"
 	@printf $(row) "build" "Build production binary."
-	@printf $(row) "docker" "Build a nanny Docker image."
+	@printf $(row) "docker" "Build a nanny container image using Docker."
+	@printf $(row) "buildah" "Build a nanny container image using Buildah."
+	@printf $(row) "push" "Push the latest and current version tagged container images to Docker Hub and Quay.io."
 	@printf $(row) "package" "Build and create .tar.gz."
 	@printf $(row) "clean" "Clean from build artefacts."
 	@printf $(header) "Dev"
@@ -28,6 +30,12 @@ docker:
 buildah:
 	buildah bud --no-cache -t docker.io/library/lunemec/nanny:$(VERSION) .
 	buildah tag docker.io/library/lunemec/nanny:$(VERSION) docker.io/library/lunemec/nanny:latest
+
+push:
+	buildah push docker.io/library/lunemec/nanny:$(VERSION) docker://quay.io/nanny/nanny:$(VERSION)
+	buildah push docker.io/library/lunemec/nanny:latest docker://quay.io/nanny/nanny:latest
+	buildah push docker.io/library/lunemec/nanny:$(VERSION) docker://docker.io/lunemec/nanny:$(VERSION) 
+	buildah push docker.io/library/lunemec/nanny:latest docker://docker.io/lunemec/nanny:latest
 
 package: clean build
 	scripts/package.sh
