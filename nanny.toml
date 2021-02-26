@@ -40,7 +40,7 @@ enabled=false
 webhook_url="https://webhook.somewhere.com/webhook"
 webhook_url_all_clear="https://webhook.somewhere.com/webhook"
 webhook_secret=""
-request_timeout=10
+request_timeout=10s
 allow_insecure_tls=false
 
 [xmpp]
