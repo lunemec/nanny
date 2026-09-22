@@ -42,23 +42,24 @@ func (nt *Timer) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func newTimer(s validSignal, nanny *Nanny) *Timer {
-	timer := &Timer{signal: s, nanny: nanny, generation: 1}
-	timer.end = time.Now().Add(timer.signal.NextSignal)
-	timer.scheduleLocked()
-	return timer
+func (nt *Timer) initializeLocked(persist func(Signal, time.Time)) {
+	nt.end = time.Now().Add(nt.signal.NextSignal)
+	if persist != nil {
+		persist(Signal(nt.signal), nt.end)
+	}
+	nt.scheduleLocked()
 }
 
 // Reset updates the nannyTimers signal to reset the timer
 func (nt *Timer) Reset(vs validSignal) {
-	nt.reset(vs, false, false)
+	nt.reset(vs, false, false, nil)
 }
 
-func (nt *Timer) resetAfterHeartbeat(vs validSignal) {
-	nt.reset(vs, vs.AllClear, false)
+func (nt *Timer) resetAfterHeartbeat(vs validSignal, persist func(Signal, time.Time)) {
+	nt.reset(vs, vs.AllClear, false, persist)
 }
 
-func (nt *Timer) reset(vs validSignal, sendAllClear, forceAllClear bool) {
+func (nt *Timer) reset(vs validSignal, sendAllClear, forceAllClear bool, persist func(Signal, time.Time)) {
 	nt.lock.Lock()
 
 	var notifyErr error
@@ -72,6 +73,9 @@ func (nt *Timer) reset(vs validSignal, sendAllClear, forceAllClear bool) {
 	nt.end = time.Now().Add(nt.signal.NextSignal)
 	nt.generation++
 	nt.alerted = false
+	if persist != nil {
+		persist(Signal(nt.signal), nt.end)
+	}
 	nt.scheduleLocked()
 	nt.lock.Unlock()
 
@@ -82,7 +86,7 @@ func (nt *Timer) reset(vs validSignal, sendAllClear, forceAllClear bool) {
 
 // ResetAllClear updates the nannyTimers signal to reset the timer
 func (nt *Timer) ResetAllClear(vs validSignal) {
-	nt.reset(vs, true, true)
+	nt.reset(vs, true, true, nil)
 }
 
 func (nt *Timer) scheduleLocked() {
@@ -93,7 +97,11 @@ func (nt *Timer) scheduleLocked() {
 		return
 	}
 	generation := nt.generation
-	nt.timer = time.AfterFunc(nt.signal.NextSignal, func() {
+	delay := time.Until(nt.end)
+	if delay < 0 {
+		delay = 0
+	}
+	nt.timer = time.AfterFunc(delay, func() {
 		nt.onExpire(generation)
 	})
 }

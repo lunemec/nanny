@@ -62,6 +62,7 @@ nfpms:
     dependencies:
       - adduser
       - ca-certificates
+      - init-system-helpers
     contents:
       - src: nanny.toml
         dst: /etc/nanny/nanny.toml

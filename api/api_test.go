@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -70,6 +71,49 @@ type orderedStorage struct {
 	mu           sync.Mutex
 	saves        []string
 }
+
+type expiryStorage struct {
+	saveStarted chan struct{}
+	releaseSave chan struct{}
+	removed     chan struct{}
+	mu          sync.Mutex
+	events      []string
+}
+
+func (s *expiryStorage) Load() ([]storage.Signal, error) { return nil, nil }
+func (s *expiryStorage) Close() error                    { return nil }
+func (s *expiryStorage) Save(storage.Signal) error {
+	close(s.saveStarted)
+	<-s.releaseSave
+	s.mu.Lock()
+	s.events = append(s.events, "save")
+	s.mu.Unlock()
+	return nil
+}
+func (s *expiryStorage) Remove(storage.Signal) error {
+	s.mu.Lock()
+	s.events = append(s.events, "remove")
+	s.mu.Unlock()
+	close(s.removed)
+	return nil
+}
+
+type blockingAllClearNotifier struct {
+	alerted         chan struct{}
+	allClearStarted chan struct{}
+	releaseAllClear chan struct{}
+}
+
+func (n *blockingAllClearNotifier) Notify(notifier.Message) error {
+	close(n.alerted)
+	return nil
+}
+func (n *blockingAllClearNotifier) NotifyAllClear(notifier.Message) error {
+	close(n.allClearStarted)
+	<-n.releaseAllClear
+	return nil
+}
+func (n *blockingAllClearNotifier) String() string { return "blocking" }
 
 func (s *orderedStorage) Load() ([]storage.Signal, error) { return nil, nil }
 func (s *orderedStorage) Remove(storage.Signal) error     { return nil }
@@ -201,6 +245,78 @@ func TestSignalPersistenceFollowsTimerUpdateOrder(t *testing.T) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	assert.Equal(t, []string{"first", "second"}, store.saves)
+}
+
+func TestSignalPersistenceCompletesBeforeTimerExpiry(t *testing.T) {
+	store := &expiryStorage{
+		saveStarted: make(chan struct{}),
+		releaseSave: make(chan struct{}),
+		removed:     make(chan struct{}),
+	}
+	handler := router(&nanny.Nanny{}, testNotifiers, store)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/signal", strings.NewReader(
+			`{"name":"expiring","notifier":"dummy","next_signal":"10ms"}`,
+		))
+		req.Header.Set("X-Dont-Modify-Name", "true")
+		handler.ServeHTTP(httptest.NewRecorder(), req)
+	}()
+	<-store.saveStarted
+
+	select {
+	case <-store.removed:
+		t.Fatal("timer expired before its persistence completed")
+	case <-time.After(30 * time.Millisecond):
+	}
+	close(store.releaseSave)
+	<-done
+	select {
+	case <-store.removed:
+	case <-time.After(time.Second):
+		t.Fatal("timer did not expire after persistence completed")
+	}
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	assert.Equal(t, []string{"save", "remove"}, store.events)
+}
+
+func TestSlowAllClearDoesNotBlockOtherSignals(t *testing.T) {
+	slow := &blockingAllClearNotifier{
+		alerted:         make(chan struct{}),
+		allClearStarted: make(chan struct{}),
+		releaseAllClear: make(chan struct{}),
+	}
+	handler := router(&nanny.Nanny{}, notifiers{"slow": slow, "dummy": &DummyNotifier{}}, &testStorage{})
+	send := func(name, notifierName, nextSignal string, allClear bool) <-chan struct{} {
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			body := strings.NewReader(fmt.Sprintf(
+				`{"name":%q,"notifier":%q,"next_signal":%q,"all_clear":%t}`,
+				name, notifierName, nextSignal, allClear,
+			))
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/signal", body)
+			req.Header.Set("X-Dont-Modify-Name", "true")
+			handler.ServeHTTP(httptest.NewRecorder(), req)
+		}()
+		return done
+	}
+
+	<-send("slow", "slow", "10ms", true)
+	<-slow.alerted
+	slowHeartbeat := send("slow", "slow", "1h", true)
+	<-slow.allClearStarted
+	otherHeartbeat := send("other", "dummy", "1h", false)
+	select {
+	case <-otherHeartbeat:
+	case <-time.After(time.Second):
+		t.Fatal("slow all-clear blocked an unrelated signal")
+	}
+	close(slow.releaseAllClear)
+	<-slowHeartbeat
 }
 
 // TestAPINoNotifier tests if we correctly return error when the notifier we tried

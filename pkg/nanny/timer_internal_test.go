@@ -62,7 +62,7 @@ func TestExpiryResetAndCallbackAreOrdered(t *testing.T) {
 
 	reset := make(chan struct{})
 	go func() {
-		timer.resetAfterHeartbeat(timer.signal)
+		timer.resetAfterHeartbeat(timer.signal, nil)
 		close(reset)
 	}()
 	select {
