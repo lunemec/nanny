@@ -52,12 +52,23 @@ func defaultErrorFunc(err error) {
 // Handle creates new timer within `Nanny`, which calls `signal.Notifier.Notify()` if there is no
 // signal within NextSignal + MaxDeviation.
 func (n *Nanny) Handle(s Signal) error {
+	return n.handleWithPersistence(s, nil)
+}
+
+// HandleWithPersistence handles a signal and runs persist before its timer is
+// armed. Calls for the same signal are serialized with expiry callbacks.
+func (n *Nanny) HandleWithPersistence(s Signal, persist func(Signal, time.Time)) error {
+	return n.handleWithPersistence(s, persist)
+}
+
+func (n *Nanny) handleWithPersistence(s Signal, persist func(Signal, time.Time)) error {
 	vs, err := n.validate(s)
 	if err != nil {
 		return fmt.Errorf("signal is invalid: %w", err)
 	}
 
-	return n.handle(vs)
+	n.handle(vs, persist)
+	return nil
 }
 
 // validate does simple sanity check.
@@ -76,35 +87,23 @@ func (n *Nanny) validate(s Signal) (validSignal, error) {
 }
 
 // handle is called only when signal has been successfully validated.
-func (n *Nanny) handle(s validSignal) error {
-	timer, created := n.getOrCreateTimer(s)
-	if !created {
-		// Timer exists, reset the timer to the new signal value.
-		// Send all-clear notification if requested
-		if s.AllClear && timer.expired(time.Now()) {
-			timer.ResetAllClear(s)
-		} else {
-			timer.Reset(s)
-		}
-	}
-
-	return nil
-}
-
-func (n *Nanny) getOrCreateTimer(s validSignal) (*Timer, bool) {
+func (n *Nanny) handle(s validSignal, persist func(Signal, time.Time)) {
 	n.timersMu.Lock()
-	defer n.timersMu.Unlock()
-
 	if n.timers == nil {
 		n.timers = make(map[string]*Timer)
 	}
-	if timer := n.timers[s.Name]; timer != nil {
-		return timer, false
+	timer := n.timers[s.Name]
+	if timer == nil {
+		timer = &Timer{signal: s, nanny: n, generation: 1}
+		timer.lock.Lock()
+		n.timers[s.Name] = timer
+		n.timersMu.Unlock()
+		timer.initializeLocked(persist)
+		timer.lock.Unlock()
+		return
 	}
-
-	timer := newTimer(s, n)
-	n.timers[s.Name] = timer
-	return timer, true
+	n.timersMu.Unlock()
+	timer.resetAfterHeartbeat(s, persist)
 }
 
 // GetTimer returns time.Timer when given program name is already registered or

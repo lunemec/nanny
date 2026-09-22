@@ -1,10 +1,14 @@
 package notifier
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"net"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -117,6 +121,91 @@ func TestEmailAuthenticationSelection(t *testing.T) {
 func TestEmailClientValidation(t *testing.T) {
 	if _, err := newMailClient(emailDelivery{port: 587}); err == nil {
 		t.Fatal("newMailClient() error = nil, want missing server error")
+	}
+}
+
+func TestEmailSupportsUnauthenticatedRelay(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+			t.Errorf("closing SMTP listener: %v", err)
+		}
+	})
+	serverDone := make(chan error, 1)
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			serverDone <- err
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		reader := bufio.NewReader(conn)
+		_, _ = fmt.Fprint(conn, "220 localhost ESMTP\r\n")
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				serverDone <- err
+				return
+			}
+			command := strings.ToUpper(strings.TrimSpace(line))
+			switch {
+			case strings.HasPrefix(command, "EHLO"), strings.HasPrefix(command, "HELO"):
+				_, _ = fmt.Fprint(conn, "250-localhost\r\n250 OK\r\n")
+			case strings.HasPrefix(command, "AUTH"):
+				serverDone <- errors.New("client attempted SMTP authentication")
+				return
+			case command == "DATA":
+				_, _ = fmt.Fprint(conn, "354 end with <CRLF>.<CRLF>\r\n")
+				for {
+					line, err = reader.ReadString('\n')
+					if err != nil {
+						serverDone <- err
+						return
+					}
+					if line == ".\r\n" {
+						break
+					}
+				}
+				_, _ = fmt.Fprint(conn, "250 queued\r\n")
+			case command == "QUIT":
+				_, _ = fmt.Fprint(conn, "221 bye\r\n")
+				serverDone <- nil
+				return
+			default:
+				_, _ = fmt.Fprint(conn, "250 OK\r\n")
+			}
+		}
+	}()
+
+	host, portText, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil {
+		t.Fatal(err)
+	}
+	email := &Email{
+		From:    "nanny@example.com",
+		To:      []string{"recipient@example.com"},
+		Subject: "%s",
+		Body:    "%s",
+		Server:  host,
+		Port:    port,
+	}
+	if err := email.Notify(Message{Program: "cron"}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-serverDone:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("SMTP server did not finish")
 	}
 }
 

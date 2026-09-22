@@ -165,7 +165,7 @@ func makeCallbackFunc(store storage.Storage) func(*nanny.Signal) {
 	}
 }
 
-func router(nanny *nanny.Nanny, notifiers notifiers, store storage.Storage) *mux.Router {
+func router(n *nanny.Nanny, enabledNotifiers notifiers, store storage.Storage) *mux.Router {
 	router := mux.NewRouter()
 	// Clarify this is API.
 	apiRouter := router.PathPrefix("/api").Subrouter()
@@ -173,8 +173,8 @@ func router(nanny *nanny.Nanny, notifiers notifiers, store storage.Storage) *mux
 	apiRouter.Handle("/version", panicWrap(headerWrap(errWrap(versionHandler)))).Name("Nanny version.").Methods("GET")
 	// In case of future API changes, nanny will support older versions of API.
 	v1Router := apiRouter.PathPrefix("/v1").Subrouter()
-	v1Router.Handle("/signals", panicWrap(headerWrap(errWrap(depWrap(nanny, notifiers, store, getSignalsHandler))))).Name("Show all registered signals.").Methods("GET")
-	v1Router.Handle("/signal", panicWrap(headerWrap(errWrap(depWrap(nanny, notifiers, store, signalHandler))))).Name("Register new signal.").Methods("POST")
+	v1Router.Handle("/signals", panicWrap(headerWrap(errWrap(depWrap(n, enabledNotifiers, store, getSignalsHandler))))).Name("Show all registered signals.").Methods("GET")
+	v1Router.Handle("/signal", panicWrap(headerWrap(errWrap(depWrap(n, enabledNotifiers, store, signalHandler))))).Name("Register new signal.").Methods("POST")
 
 	err := router.Walk(saveRoutes)
 	if err != nil {
@@ -233,23 +233,22 @@ func signalHandler(n *nanny.Nanny, notifiers notifiers, store storage.Storage, w
 	}
 
 	s := constructSignal(signal, notif, store, req)
-	err = n.Handle(s)
+	err = n.HandleWithPersistence(s, func(current nanny.Signal, deadline time.Time) {
+		err := store.Save(storage.Signal{
+			Name:       current.Name,
+			Notifier:   signal.Notifier,
+			NextSignal: deadline,
+			AllClear:   current.AllClear,
+			Meta:       current.Meta,
+		})
+		// This error should not be on the API but only logged. Notifications
+		// will still work.
+		if err != nil {
+			slog.Error("Error saving signal to persistent storage", "err", err)
+		}
+	})
 	if err != nil {
 		return fmt.Errorf("unable to handle signal: %w", err)
-	}
-
-	err = store.Save(storage.Signal{
-		Name:       s.Name,
-		Notifier:   signal.Notifier,
-		NextSignal: time.Now().Add(s.NextSignal),
-		AllClear:   s.AllClear,
-		Meta:       s.Meta,
-	})
-
-	// This error should not be on the API but only logged. Notifications will still
-	// work.
-	if err != nil {
-		slog.Error("Error saving signal to persistent storage", "err", err)
 	}
 	// When everything is OK, we should return JSON with "status_code": 200, and
 	// message "status": "OK".

@@ -38,12 +38,72 @@ func NewSQLiteDB(dsn string) (Storage, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("unable to create sqlite table: %w", err)
 	}
+	if err := migrateSignalSchema(db); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("unable to migrate sqlite table: %w", err)
+	}
 	if err := validateSignalSchema(db); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("unable to validate sqlite table: %w", err)
 	}
 
 	return &sqliteDB{db: db}, nil
+}
+
+func migrateSignalSchema(db *sql.DB) error {
+	columns, err := signalColumns(db)
+	if err != nil {
+		return err
+	}
+
+	for _, required := range []string{"name", "notifier", "next_signal"} {
+		if !columns[required] {
+			return fmt.Errorf("missing required column %q", required)
+		}
+	}
+	if !columns["all_clear"] {
+		if _, err := db.Exec("ALTER TABLE signal ADD COLUMN all_clear INTEGER DEFAULT 0 NULL"); err != nil {
+			return err
+		}
+	}
+	if !columns["meta"] {
+		if _, err := db.Exec("ALTER TABLE signal ADD COLUMN meta TEXT NULL"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func signalColumns(db *sql.DB) (columns map[string]bool, err error) {
+	rows, err := db.Query("PRAGMA table_info(signal)")
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
+
+	columns = make(map[string]bool)
+	for rows.Next() {
+		var (
+			cid        int
+			name       string
+			columnType string
+			notNull    int
+			defaultVal sql.NullString
+			primaryKey int
+		)
+		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultVal, &primaryKey); err != nil {
+			return nil, err
+		}
+		columns[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return columns, nil
 }
 
 func validateSignalSchema(db *sql.DB) (err error) {

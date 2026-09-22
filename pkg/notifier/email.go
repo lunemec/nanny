@@ -93,10 +93,14 @@ func sendEmail(ctx context.Context, message *mail.Msg, delivery emailDelivery) e
 func newMailClient(delivery emailDelivery) (*mail.Client, error) {
 	options := []mail.Option{
 		mail.WithPort(delivery.port),
-		mail.WithUsername(delivery.user),
-		mail.WithPassword(delivery.password),
 		mail.WithTimeout(10 * time.Second),
-		mail.WithOpportunisticSMTPAuth(smtpAuthTypes(delivery.allowInsecureAuth)...),
+	}
+	if delivery.user != "" {
+		options = append(options,
+			mail.WithUsername(delivery.user),
+			mail.WithPassword(delivery.password),
+			mail.WithOpportunisticSMTPAuth(smtpAuthTypes(delivery.allowInsecureAuth)...),
+		)
 	}
 	if delivery.implicitTLS {
 		options = append(options, mail.WithSSL())

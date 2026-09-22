@@ -89,15 +89,14 @@ func TestSQLiteLoadsOldSchemaAndTimestamp(t *testing.T) {
 		name TEXT PRIMARY KEY NOT NULL,
 		notifier TEXT NULL,
 		next_signal DATETIME NULL,
-		all_clear INTEGER DEFAULT 0 NULL,
 		meta TEXT NULL
 	)`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, err = db.Exec(
-		"INSERT INTO signal (name, notifier, next_signal, all_clear, meta) VALUES (?, ?, ?, ?, ?)",
-		"legacy", "stderr", "2021-07-08 09:10:11.123456789+02:00", 1, `{"legacy":"metadata"}`,
+		"INSERT INTO signal (name, notifier, next_signal, meta) VALUES (?, ?, ?, ?)",
+		"legacy", "stderr", "2021-07-08 09:10:11.123456789+02:00", `{"legacy":"metadata"}`,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -115,8 +114,12 @@ func TestSQLiteLoadsOldSchemaAndTimestamp(t *testing.T) {
 		t.Fatalf("Load() returned %d signals, want 1", len(signals))
 	}
 	wantTime := time.Date(2021, time.July, 8, 9, 10, 11, 123456789, time.FixedZone("", 2*60*60))
-	if !signals[0].NextSignal.Equal(wantTime) || !signals[0].AllClear || signals[0].Meta["legacy"] != "metadata" {
+	if !signals[0].NextSignal.Equal(wantTime) || signals[0].AllClear || signals[0].Meta["legacy"] != "metadata" {
 		t.Fatalf("Load() = %+v", signals[0])
+	}
+	signals[0].AllClear = true
+	if err := store.Save(signals[0]); err != nil {
+		t.Fatalf("Save() after migration error = %v", err)
 	}
 }
 

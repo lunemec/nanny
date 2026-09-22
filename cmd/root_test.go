@@ -27,6 +27,7 @@ enabled = false
 	cfgFile = configPath
 	t.Setenv("NANNY_NAME", "from-env")
 	t.Setenv("NANNY_STORAGE_DSN", "file:env.sqlite")
+	t.Setenv("NANNY_STDERR_ENABLED", "true")
 	initConfig()
 
 	if config.Name != "from-env" {
@@ -38,8 +39,8 @@ enabled = false
 	if config.StorageDSN != "file:env.sqlite" {
 		t.Fatalf("StorageDSN = %q, want environment value", config.StorageDSN)
 	}
-	if config.Stderr.Enabled {
-		t.Fatal("Stderr.Enabled = true, want config file value false")
+	if !config.Stderr.Enabled {
+		t.Fatal("Stderr.Enabled = false, want nested environment value true")
 	}
 }
 

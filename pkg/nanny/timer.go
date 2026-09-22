@@ -12,10 +12,12 @@ import (
 
 // Timer encapsulates a signal and its timer
 type Timer struct {
-	signal validSignal
-	timer  *time.Timer
-	nanny  *Nanny
-	end    time.Time
+	signal     validSignal
+	timer      *time.Timer
+	nanny      *Nanny
+	end        time.Time
+	generation uint64
+	alerted    bool
 
 	lock sync.Mutex
 }
@@ -40,72 +42,97 @@ func (nt *Timer) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (nt *Timer) expired(now time.Time) bool {
-	nt.lock.Lock()
-	defer nt.lock.Unlock()
-	return now.After(nt.end)
-}
-
-func newTimer(s validSignal, nanny *Nanny) *Timer {
-	timer := &Timer{signal: s, nanny: nanny}
-	timer.end = time.Now().Add(timer.signal.NextSignal)
-	// If NextSignal is in the past but needed for all-clear notification do not notify user until Timer is reset
-	if timer.signal.NextSignal.Seconds() > 0 {
-		timer.timer = time.AfterFunc(timer.signal.NextSignal, timer.onExpire)
-	} else {
-		timer.timer = time.AfterFunc(math.MaxInt64, timer.onExpire)
-		timer.timer.Stop()
+func (nt *Timer) initializeLocked(persist func(Signal, time.Time)) {
+	nt.end = time.Now().Add(nt.signal.NextSignal)
+	if persist != nil {
+		persist(Signal(nt.signal), nt.end)
 	}
-	return timer
+	nt.scheduleLocked()
 }
 
 // Reset updates the nannyTimers signal to reset the timer
 func (nt *Timer) Reset(vs validSignal) {
-	nt.lock.Lock()
-	defer nt.lock.Unlock()
+	nt.reset(vs, false, false, nil)
+}
 
-	nt.signal.Notifier = vs.Notifier
-	nt.signal.NextSignal = vs.NextSignal
-	nt.signal.AllClear = vs.AllClear
-	nt.signal.Meta = vs.Meta
-	nt.end = time.Now().Add(vs.NextSignal)
-	nt.timer.Reset(vs.NextSignal)
+func (nt *Timer) resetAfterHeartbeat(vs validSignal, persist func(Signal, time.Time)) {
+	nt.reset(vs, vs.AllClear, false, persist)
+}
+
+func (nt *Timer) reset(vs validSignal, sendAllClear, forceAllClear bool, persist func(Signal, time.Time)) {
+	nt.lock.Lock()
+
+	var notifyErr error
+	if sendAllClear && (forceAllClear || nt.alerted) {
+		if err := nt.notifyAllClearLocked(); err != nil {
+			notifyErr = nt.wrapNotifyErrorLocked(err)
+		}
+	}
+	nt.timer.Stop()
+	nt.signal = vs
+	nt.end = time.Now().Add(nt.signal.NextSignal)
+	nt.generation++
+	nt.alerted = false
+	if persist != nil {
+		persist(Signal(nt.signal), nt.end)
+	}
+	nt.scheduleLocked()
+	nt.lock.Unlock()
+
+	if notifyErr != nil {
+		nt.reportNotifyError(notifyErr)
+	}
 }
 
 // ResetAllClear updates the nannyTimers signal to reset the timer
 func (nt *Timer) ResetAllClear(vs validSignal) {
-	if err := nt.notifyAllClear(); err != nil {
-		nt.reportNotifyError(err)
-	}
-
-	nt.lock.Lock()
-	defer nt.lock.Unlock()
-
-	nt.signal.Notifier = vs.Notifier
-	nt.signal.NextSignal = vs.NextSignal
-	nt.signal.AllClear = vs.AllClear
-	nt.signal.Meta = vs.Meta
-	nt.end = time.Now().Add(vs.NextSignal)
-	nt.timer.Reset(vs.NextSignal)
+	nt.reset(vs, true, true, nil)
 }
 
-func (nt *Timer) onExpire() {
-	err := nt.notify()
-	if err != nil {
-		nt.reportNotifyError(err)
+func (nt *Timer) scheduleLocked() {
+	if nt.signal.NextSignal <= 0 {
+		nt.alerted = true
+		nt.timer = time.AfterFunc(math.MaxInt64, func() {})
+		nt.timer.Stop()
+		return
+	}
+	generation := nt.generation
+	delay := max(time.Until(nt.end), 0)
+	nt.timer = time.AfterFunc(delay, func() {
+		nt.onExpire(generation)
+	})
+}
+
+func (nt *Timer) onExpire(generation uint64) {
+	nt.lock.Lock()
+
+	if generation != nt.generation || nt.alerted {
+		nt.lock.Unlock()
+		return
+	}
+	nt.alerted = true
+	var notifyErr error
+	if err := nt.notifyLocked(); err != nil {
+		notifyErr = nt.wrapNotifyErrorLocked(err)
 	}
 
 	// Call callback if set.
-	nt.lock.Lock()
 	if nt.signal.CallbackFunc != nil {
 		signal := Signal(nt.signal)
 		nt.signal.CallbackFunc(&signal)
 	}
 	nt.lock.Unlock()
+
+	if notifyErr != nil {
+		nt.reportNotifyError(notifyErr)
+	}
+}
+
+func (nt *Timer) wrapNotifyErrorLocked(err error) error {
+	return fmt.Errorf("error calling notifier %T with signal %+v: %w", nt.signal.Notifier, nt.signal, err)
 }
 
 func (nt *Timer) reportNotifyError(err error) {
-	err = fmt.Errorf("error calling notifier %T with signal %+v: %w", nt.signal.Notifier, nt.signal, err)
 	if nt.nanny.ErrorFunc == nil {
 		defaultErrorFunc(err)
 		return
@@ -113,9 +140,7 @@ func (nt *Timer) reportNotifyError(err error) {
 	nt.nanny.ErrorFunc(err)
 }
 
-func (nt *Timer) notify() error {
-	nt.lock.Lock()
-	defer nt.lock.Unlock()
+func (nt *Timer) notifyLocked() error {
 	name := "Nanny"
 	if nt.nanny.Name != "" {
 		name = nt.nanny.Name
@@ -129,9 +154,7 @@ func (nt *Timer) notify() error {
 	})
 }
 
-func (nt *Timer) notifyAllClear() error {
-	nt.lock.Lock()
-	defer nt.lock.Unlock()
+func (nt *Timer) notifyAllClearLocked() error {
 	name := "Nanny"
 	if nt.nanny.Name != "" {
 		name = nt.nanny.Name

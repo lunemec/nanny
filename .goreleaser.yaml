@@ -1,0 +1,115 @@
+version: 2
+
+project_name: nanny
+
+builds:
+  - id: nanny
+    main: .
+    binary: nanny
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    tags:
+      - netgo
+    goos:
+      - linux
+    goarch:
+      - amd64
+    goamd64:
+      - v1
+    ldflags:
+      - >-
+        -s -w
+        -X nanny/pkg/version.Version={{ .Version }}
+        -X nanny/pkg/version.GitCommit={{ .FullCommit }}
+        -X nanny/pkg/version.BuildDate={{ .Date }}
+
+archives:
+  - id: nanny
+    ids:
+      - nanny
+    formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - nanny.toml
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+changelog:
+  use: github-native
+
+nfpms:
+  - id: nanny
+    package_name: nanny
+    ids:
+      - nanny
+    vendor: lunemec
+    homepage: https://github.com/lunemec/nanny
+    maintainer: Lukas Nemec <lu.nemec@gmail.com>
+    description: Monitoring service that alerts when expected activity stops.
+    license: BSD-3-Clause
+    formats:
+      - deb
+    bindir: /usr/bin
+    section: net
+    priority: optional
+    dependencies:
+      - adduser
+      - ca-certificates
+      - init-system-helpers
+    contents:
+      - src: nanny.toml
+        dst: /etc/nanny/nanny.toml
+        type: "config|noreplace"
+        file_info:
+          mode: 0640
+          owner: root
+          group: root
+      - src: packaging/nanny.service
+        dst: /lib/systemd/system/nanny.service
+    scripts:
+      postinstall: packaging/postinstall.sh
+      preremove: packaging/preremove.sh
+      postremove: packaging/postremove.sh
+
+dockers_v2:
+  - id: nanny
+    ids:
+      - nanny
+    dockerfile: Dockerfile.release
+    images:
+      - ghcr.io/lunemec/nanny
+      - docker.io/lunemec/nanny
+    tags:
+      - "{{ .Version }}"
+      - "{{ if not .IsSnapshot }}latest{{ end }}"
+    platforms:
+      - linux/amd64
+    extra_files:
+      - nanny.toml
+    labels:
+      org.opencontainers.image.title: nanny
+      org.opencontainers.image.description: Monitoring service that alerts when expected activity stops.
+      org.opencontainers.image.source: https://github.com/lunemec/nanny
+      org.opencontainers.image.url: https://github.com/lunemec/nanny
+      org.opencontainers.image.licenses: BSD-3-Clause
+      org.opencontainers.image.created: "{{ .Date }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.version: "{{ .Version }}"
+    sbom: "{{ not .IsSnapshot }}"
+    flags:
+      - "--provenance={{ if .IsSnapshot }}false{{ else }}mode=max{{ end }}"
+
+release:
+  github:
+    owner: lunemec
+    name: nanny
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
