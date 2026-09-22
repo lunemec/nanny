@@ -9,7 +9,7 @@ ARG GIT_COMMIT=unknown
 ARG BUILD_DATE=unknown
 RUN CGO_ENABLED=0 go build -trimpath -tags netgo -ldflags "-s -w -X nanny/pkg/version.Version=${VERSION} -X nanny/pkg/version.GitCommit=${GIT_COMMIT} -X nanny/pkg/version.BuildDate=${BUILD_DATE}" -o /nanny .
 
-FROM docker.io/library/alpine:3.23
+FROM docker.io/library/alpine:3.24
 
 LABEL org.opencontainers.image.source="https://github.com/lunemec/nanny" \
       org.opencontainers.image.licenses="BSD-3-Clause"
