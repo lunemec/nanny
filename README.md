@@ -1,6 +1,6 @@
 
 # Nanny
-[![Build Status](https://travis-ci.org/lunemec/nanny.svg?branch=master)](https://travis-ci.org/lunemec/nanny) [![Go Report Card](https://goreportcard.com/badge/github.com/lunemec/nanny)](https://goreportcard.com/report/github.com/lunemec/nanny) [![Maintainability](https://api.codeclimate.com/v1/badges/224b9390145c2e5a8046/maintainability)](https://codeclimate.com/github/lunemec/nanny/maintainability) [![codecov](https://codecov.io/gh/lunemec/nanny/branch/master/graph/badge.svg)](https://codecov.io/gh/lunemec/nanny)
+[![CI](https://github.com/lunemec/nanny/actions/workflows/ci.yml/badge.svg)](https://github.com/lunemec/nanny/actions/workflows/ci.yml) [![Go Report Card](https://goreportcard.com/badge/github.com/lunemec/nanny)](https://goreportcard.com/report/github.com/lunemec/nanny) [![Maintainability](https://api.codeclimate.com/v1/badges/224b9390145c2e5a8046/maintainability)](https://codeclimate.com/github/lunemec/nanny/maintainability)
 
 Nanny is a monitoring tool that monitors the **absence of activity**.
 
@@ -44,7 +44,7 @@ cd nanny
 make build
 ```
 
-Note that Nanny requires Go >= 1.8 to run.
+Note that Nanny requires Go >= 1.27 to build.
 
 An alternative way of using Nanny is to run it inside a Docker container. You must build the Nanny container image first by using the command `make docker`/`make buildah`. Afterwards, a dockerized Nanny instance can be started like this:
 ```bash

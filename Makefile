@@ -1,9 +1,12 @@
-.PHONY: build
+.PHONY: build docker buildah push package run test vet lint clean
 SHELL := /bin/bash
 export TESTS
 header = "  \e[1;34m%-30s\e[m \n"
 row = "\e[1mmake %-32s\e[m %-50s \n"
 VERSION := $(shell cat VERSION)
+GIT_COMMIT ?= $(shell git rev-parse --short HEAD)
+BUILD_DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+LDFLAGS := -X nanny/pkg/version.Version=$(VERSION) -X nanny/pkg/version.GitCommit=$(GIT_COMMIT) -X nanny/pkg/version.BuildDate=$(BUILD_DATE)
 
 all:
 	@printf $(header) "Build"
@@ -20,15 +23,14 @@ all:
 	@printf $(row) "lint" "Run gometalinter (you have to install it)."
 
 build:
-	go get github.com/ahmetb/govvv
-	govvv build -pkg nanny/pkg/version
+	go build -trimpath -ldflags "$(LDFLAGS)" -o nanny .
 
 docker:
-	docker build --no-cache -t lunemec/nanny:$(VERSION) .
-	docker tag nanny:$(VERSION) lunemec/nanny:latest
+	docker build --no-cache --build-arg VERSION=$(VERSION) --build-arg GIT_COMMIT=$(GIT_COMMIT) --build-arg BUILD_DATE=$(BUILD_DATE) -t lunemec/nanny:$(VERSION) .
+	docker tag lunemec/nanny:$(VERSION) lunemec/nanny:latest
 
 buildah:
-	buildah bud --no-cache -t docker.io/library/lunemec/nanny:$(VERSION) .
+	buildah bud --no-cache --build-arg VERSION=$(VERSION) --build-arg GIT_COMMIT=$(GIT_COMMIT) --build-arg BUILD_DATE=$(BUILD_DATE) -t docker.io/library/lunemec/nanny:$(VERSION) .
 	buildah tag docker.io/library/lunemec/nanny:$(VERSION) docker.io/library/lunemec/nanny:latest
 
 push:
