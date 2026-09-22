@@ -1,12 +1,17 @@
 package notifier
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 	"net/url"
+	"time"
 
-	"github.com/ashwanthkumar/slack-go-webhook"
 	"github.com/pkg/errors"
+	"github.com/slack-go/slack"
 )
+
+var slackHTTPClient = &http.Client{Timeout: 10 * time.Second}
 
 type slackNotifier struct {
 	webhookURL string
@@ -17,8 +22,12 @@ func NewSlack(webhookURL string) (Notifier, error) {
 	if webhookURL == "" {
 		return nil, errors.New("Unable to initialize slack: webhookURL is empty")
 	}
-	if _, err := url.Parse(webhookURL); err != nil {
+	parsedURL, err := url.Parse(webhookURL)
+	if err != nil {
 		return nil, errors.Wrap(err, "Unable to initialze slack")
+	}
+	if parsedURL.Host == "" || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
+		return nil, errors.New("Unable to initialize slack: webhookURL must be an absolute HTTP or HTTPS URL")
 	}
 
 	return &slackNotifier{webhookURL}, nil
@@ -26,60 +35,38 @@ func NewSlack(webhookURL string) (Notifier, error) {
 
 // Notify implements Notifier interface for slack.
 func (s *slackNotifier) Notify(msg Message) error {
-	msgText := msg.Format()
-	hexRed := "#FF0000"
-	attachment := slack.Attachment{
-		Fallback: &msgText,
-		Text:     &msgText,
-		Color:    &hexRed,
-	}
-	if len(msg.Meta) != 0 {
-		for key, value := range msg.Meta {
-			attachment.AddField(slack.Field{Title: key, Value: value})
-		}
-	}
-	payload := slack.Payload{
-		Username:    "Nanny",
-		IconEmoji:   ":baby_chick:",
-		Attachments: []slack.Attachment{attachment},
-	}
-	errs := slack.Send(s.webhookURL, "", payload)
-	if len(errs) > 0 {
-		errStr := ""
-		for _, err := range errs {
-			errStr = fmt.Sprintf("%s, ", err)
-		}
-		return errors.New(errStr)
-	}
-	return nil
+	return s.send(msg.Format(), msg.Meta, "#FF0000")
 }
 
 // NotifyAllClear implements Notifier interface for slack.
 func (s *slackNotifier) NotifyAllClear(msg Message) error {
-	msgText := msg.FormatAllClear()
-	hexGreen := "#00FF00"
+	return s.send(msg.FormatAllClear(), msg.Meta, "#00FF00")
+}
+
+func (s *slackNotifier) send(text string, meta map[string]string, color string) error {
 	attachment := slack.Attachment{
-		Fallback: &msgText,
-		Text:     &msgText,
-		Color:    &hexGreen,
+		Fallback: text,
+		Text:     text,
+		Color:    color,
 	}
-	if len(msg.Meta) != 0 {
-		for key, value := range msg.Meta {
-			attachment.AddField(slack.Field{Title: key, Value: value})
-		}
+	for key, value := range meta {
+		attachment.Fields = append(attachment.Fields, slack.AttachmentField{
+			Title: key,
+			Value: value,
+		})
 	}
-	payload := slack.Payload{
+	payload := &slack.WebhookMessage{
 		Username:    "Nanny",
 		IconEmoji:   ":baby_chick:",
 		Attachments: []slack.Attachment{attachment},
 	}
-	errs := slack.Send(s.webhookURL, "", payload)
-	if len(errs) > 0 {
-		errStr := ""
-		for _, err := range errs {
-			errStr = fmt.Sprintf("%s, ", err)
-		}
-		return errors.New(errStr)
+	if err := slack.PostWebhookCustomHTTPContext(
+		context.Background(),
+		s.webhookURL,
+		slackHTTPClient,
+		payload,
+	); err != nil {
+		return fmt.Errorf("unable to notify via Slack: %w", err)
 	}
 	return nil
 }
