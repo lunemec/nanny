@@ -39,27 +39,59 @@ After 5s pass, nanny prints to *stderr*:
 ```
 
 ## Installation
-The easiest way is to download the Linux amd64 `.tar.gz` or `.deb` from the
-[releases](https://github.com/lunemec/nanny/releases), edit `nanny.toml`, and run it.
 
-Or you can clone this repository and compile it yourself:
+Download the Linux amd64 archive or Debian package from the
+[releases](https://github.com/lunemec/nanny/releases).
+
+### Linux archive
+
+Extract the archive, edit `nanny.toml`, and run Nanny directly:
+
+```bash
+tar -xzf nanny_0.5.0_linux_amd64.tar.gz
+./nanny --config nanny.toml
+```
+
+### Debian package
+
+Install the downloaded package with APT:
+
+```bash
+sudo apt install ./nanny_0.5.0_linux_amd64.deb
+```
+
+The package installs the configuration at `/etc/nanny/nanny.toml`, stores state
+under `/var/lib/nanny`, and installs, enables, and starts the `nanny.service`
+systemd unit. Edit the configuration and restart the service after making
+changes.
+
+### Build from source
+
 ```bash
 git clone https://github.com/lunemec/nanny.git
 cd nanny
 make build
 ```
 
-Note that Nanny requires Go >= 1.27 to build.
+Nanny requires Go >= 1.27 to build.
 
-Nanny is also published to GitHub Container Registry and Docker Hub. Both names
-refer to the same image:
+### Containers
+
+Starting with `0.5.0`, Nanny is published to GitHub Container Registry and
+Docker Hub. Both names refer to the same image:
 ```bash
-docker run -d -p 8080:8080 -e "NANNY_NAME=MyNanny" ghcr.io/lunemec/nanny:latest
+docker run -d -p 8080:8080 \
+  -e "NANNY_NAME=MyNanny" \
+  -v nanny-data:/var/lib/nanny \
+  ghcr.io/lunemec/nanny:latest
 # Equivalent image: docker.io/lunemec/nanny:latest
 ```
-**Note:** 
-- Use the `docker run` environment variable parameter `-e` in combination with `NANNY_<CONFIG_PROPERTY_HERE>` to override `nanny.toml` file configurations. 
-- Optionally, you can mount your own `nanny.toml` file (Docker option `-v`) into the containers' `/opt` directory to overwrite the default `nanny.toml` configuration. You then need to overwride the default `CMD` with `--config /path/inside/container/to/nanny.toml`.
+
+**Note:**
+
+- Use the `docker run` environment variable parameter `-e` in combination with `NANNY_<CONFIG_PROPERTY_HERE>` to override `nanny.toml` file configurations.
+- Optionally, mount your own configuration at `/etc/nanny/nanny.toml` and persist state at `/var/lib/nanny`.
+- The `0.4` container stored its binary, configuration, and database under `/opt`. Before upgrading a persistent `0.4` deployment, copy its `nanny.toml` to `/etc/nanny/nanny.toml` and its SQLite database to `/var/lib/nanny/nanny.sqlite`, then update volume mounts.
 
 Additionally, it's possible to run Nanny using the provided Docker Compose file (see [docker-compose.yml](docker-compose.yml)):
 ```yml
@@ -223,6 +255,7 @@ make build                            Build production binary.
 make docker                           Build a Nanny container using Docker.
 make snapshot                         Build release artifacts without publishing.
 make release-check                    Validate the GoReleaser configuration.
+make release-preflight                Verify the release tag matches pushed master.
   Dev
 make run                              Run Nanny in dev mode, all logging and race detector ON.
 make test                             Run tests.
@@ -232,12 +265,14 @@ make lint                             Run the pinned golangci-lint version.
 
 ## Releasing
 
-Releases are manual. From a clean checkout with an unprefixed version tag at
-`HEAD` (for example `0.5.0`), log in to both registries, provide a GitHub token,
-and publish:
+Releases are manual. From a clean checkout, create and push an unprefixed
+version tag at `HEAD` (for example `0.5.0`). The tag, `HEAD`, and
+`origin/master` must all resolve to the same commit. Then log in to both
+registries, provide a GitHub token, and publish:
 
 ```bash
 make snapshot
+make release-preflight
 docker login ghcr.io
 docker login docker.io
 GITHUB_TOKEN=... make release

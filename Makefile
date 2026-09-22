@@ -1,4 +1,4 @@
-.PHONY: build docker run test vet lint snapshot release-check release
+.PHONY: build docker run test vet lint snapshot release-check release-preflight release-preflight-test release
 SHELL := /bin/bash
 export TESTS
 header = "  \e[1;34m%-30s\e[m \n"
@@ -15,6 +15,7 @@ all:
 	@printf $(row) "docker" "Build a nanny container image using Docker."
 	@printf $(row) "snapshot" "Build all release artifacts without publishing."
 	@printf $(row) "release-check" "Validate the GoReleaser configuration."
+	@printf $(row) "release-preflight" "Verify the release tag matches pushed master."
 	@printf $(row) "release" "Publish from a clean, tagged checkout."
 	@printf $(header) "Dev"
 	@printf $(row) "run" "Run Nanny in dev mode, all logging and race detector ON."
@@ -47,8 +48,12 @@ snapshot:
 release-check:
 	$(GORELEASER) check
 
-release:
+release-preflight:
+	@./scripts/release-preflight.sh
+
+release-preflight-test:
+	@./scripts/test-release-preflight.sh
+
+release: release-preflight
 	@test -n "$(GITHUB_TOKEN)" || (echo "GITHUB_TOKEN is required"; exit 1)
-	@test -z "$$(git status --porcelain)" || (echo "release requires a clean checkout"; exit 1)
-	@git describe --tags --exact-match >/dev/null 2>&1 || (echo "release requires a tag at HEAD"; exit 1)
 	$(GORELEASER) release --clean
