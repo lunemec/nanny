@@ -2,13 +2,12 @@ package nanny
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"sync"
 	"time"
 
 	"nanny/pkg/notifier"
-
-	"github.com/pkg/errors"
 )
 
 // Timer encapsulates a signal and its timer
@@ -106,7 +105,7 @@ func (nt *Timer) onExpire() {
 }
 
 func (nt *Timer) reportNotifyError(err error) {
-	err = errors.Wrapf(err, "error calling notifier: %T with signal: %+v", nt.signal.Notifier, nt.signal)
+	err = fmt.Errorf("error calling notifier %T with signal %+v: %w", nt.signal.Notifier, nt.signal, err)
 	if nt.nanny.ErrorFunc == nil {
 		defaultErrorFunc(err)
 		return

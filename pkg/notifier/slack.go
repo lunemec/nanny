@@ -2,12 +2,12 @@ package notifier
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/slack-go/slack"
 )
 
@@ -25,14 +25,14 @@ type slackNotifier struct {
 // NewSlack creates a new slack notifier sending to the supplied webhookURL.
 func NewSlack(webhookURL string) (Notifier, error) {
 	if webhookURL == "" {
-		return nil, errors.New("Unable to initialize slack: webhookURL is empty")
+		return nil, errors.New("unable to initialize slack: webhookURL is empty")
 	}
 	parsedURL, err := url.Parse(webhookURL)
 	if err != nil {
-		return nil, errors.Wrap(err, "Unable to initialze slack")
+		return nil, fmt.Errorf("unable to initialize slack: %w", err)
 	}
 	if parsedURL.Hostname() == "" || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
-		return nil, errors.New("Unable to initialize slack: webhookURL must be an absolute HTTP or HTTPS URL")
+		return nil, errors.New("unable to initialize slack: webhookURL must be an absolute HTTP or HTTPS URL")
 	}
 
 	return &slackNotifier{webhookURL}, nil

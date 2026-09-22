@@ -7,12 +7,12 @@ import (
 	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
 	"time"
-
-	"github.com/pkg/errors"
 )
 
 type webhookNotifier struct {
@@ -37,10 +37,10 @@ func NewWebhook(WebhookURL string,
 	AllowInsecureTLS bool) (Notifier, error) {
 
 	if WebhookURL == "" {
-		return nil, errors.New("Unable to initialize webhook: webhookURL is empty")
+		return nil, errors.New("unable to initialize webhook: webhookURL is empty")
 	}
 	if WebhookURLAllClear == "" {
-		return nil, errors.New("Unable to initialize webhook: webhookURL_all_clear is empty")
+		return nil, errors.New("unable to initialize webhook: webhookURL_all_clear is empty")
 	}
 
 	httpClient := &http.Client{Timeout: time.Second * RequestTimeout}
@@ -67,7 +67,7 @@ func (w *webhookNotifier) Notify(msg Message) error {
 	})
 	request, err := http.NewRequest("POST", w.WebhookURL, bytes.NewBuffer(postBody))
 	if err != nil {
-		return errors.Wrap(err, "unable to create webhook request")
+		return fmt.Errorf("unable to create webhook request: %w", err)
 	}
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-Program", msg.Program)
@@ -83,15 +83,15 @@ func (w *webhookNotifier) Notify(msg Message) error {
 
 	response, err := w.httpClient.Do(request)
 	if err != nil {
-		return errors.Wrap(err, "unable to notify via webhook")
+		return fmt.Errorf("unable to notify via webhook: %w", err)
 	}
 	_, readErr := io.Copy(io.Discard, response.Body)
 	closeErr := response.Body.Close()
 	if readErr != nil {
-		return errors.Wrap(readErr, "unable to read webhook response")
+		return fmt.Errorf("unable to read webhook response: %w", readErr)
 	}
 	if closeErr != nil {
-		return errors.Wrap(closeErr, "unable to close webhook response")
+		return fmt.Errorf("unable to close webhook response: %w", closeErr)
 	}
 
 	return nil
@@ -105,7 +105,7 @@ func (w *webhookNotifier) NotifyAllClear(msg Message) error {
 	})
 	request, err := http.NewRequest("POST", w.WebhookURLAllClear, bytes.NewBuffer(postBody))
 	if err != nil {
-		return errors.Wrap(err, "unable to create webhook request")
+		return fmt.Errorf("unable to create webhook request: %w", err)
 	}
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-Program", msg.Program)
@@ -121,15 +121,15 @@ func (w *webhookNotifier) NotifyAllClear(msg Message) error {
 
 	response, err := w.httpClient.Do(request)
 	if err != nil {
-		return errors.Wrap(err, "unable to notify via webhook")
+		return fmt.Errorf("unable to notify via webhook: %w", err)
 	}
 	_, readErr := io.Copy(io.Discard, response.Body)
 	closeErr := response.Body.Close()
 	if readErr != nil {
-		return errors.Wrap(readErr, "unable to read webhook response")
+		return fmt.Errorf("unable to read webhook response: %w", readErr)
 	}
 	if closeErr != nil {
-		return errors.Wrap(closeErr, "unable to close webhook response")
+		return fmt.Errorf("unable to close webhook response: %w", closeErr)
 	}
 
 	return nil

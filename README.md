@@ -189,6 +189,8 @@ This can be done in the config file or by setting `NANNY_STORAGE_DSN` ENV variab
 
 ## Logging
 By default, nanny logs only errors. To enable more verbose logging, use `LOGXI=*` environment variable.
+Global levels `LOGXI=*=INF`, `LOGXI=*=WRN`, and `LOGXI=*=ERR` are also supported.
+Logs are written as JSON to standard output.
 
 SMTP uses implicit TLS on port 465 and opportunistic STARTTLS on other ports. The
 `email.smtp_allow_insecure_auth` option permits credentials to be sent without
