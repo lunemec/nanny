@@ -2,11 +2,11 @@ package nanny
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"nanny/pkg/notifier"
 
-	"github.com/cornelk/hashmap"
 	"github.com/pkg/errors"
 )
 
@@ -17,7 +17,8 @@ type Nanny struct {
 	// Function that will be called when notifier.Notify returns error.
 	// If not specified, uses defaultErrorFunc.
 	ErrorFunc ErrorFunc
-	timers    hashmap.HashMap // Map of program names (Signal.Name) to their timers.
+	timersMu  sync.RWMutex
+	timers    map[string]*Timer // Map of program names (Signal.Name) to their timers.
 }
 
 // Signal represents program calling nanny to notify with given notifier if
@@ -77,47 +78,61 @@ func (n *Nanny) validate(s Signal) (validSignal, error) {
 
 // handle is called only when signal has been successfully validated.
 func (n *Nanny) handle(s validSignal) error {
-	// Check if this program already has goroutine that needs cancelling.
-	timer := n.GetTimer(s.Name)
-
-	if timer != nil {
+	timer, created := n.getOrCreateTimer(s)
+	if !created {
 		// Timer exists, reset the timer to the new signal value.
 		// Send all-clear notification if requested
-		if s.AllClear && time.Now().After(timer.end) {
+		if s.AllClear && timer.expired(time.Now()) {
 			timer.ResetAllClear(s)
 		} else {
 			timer.Reset(s)
 		}
-	} else {
-		// No timer is registered for this program, create it.
-		n.SetTimer(s.Name, newTimer(s, n))
 	}
 
 	return nil
 }
 
+func (n *Nanny) getOrCreateTimer(s validSignal) (*Timer, bool) {
+	n.timersMu.Lock()
+	defer n.timersMu.Unlock()
+
+	if n.timers == nil {
+		n.timers = make(map[string]*Timer)
+	}
+	if timer := n.timers[s.Name]; timer != nil {
+		return timer, false
+	}
+
+	timer := newTimer(s, n)
+	n.timers[s.Name] = timer
+	return timer, true
+}
+
 // GetTimer returns time.Timer when given program name is already registered or
 // nil.
 func (n *Nanny) GetTimer(name string) *Timer {
-	value, ok := n.timers.GetStringKey(name)
-	if !ok {
-		return nil
-	}
-	return value.(*Timer)
+	n.timersMu.RLock()
+	defer n.timersMu.RUnlock()
+	return n.timers[name]
 }
 
 // SetTimer sets new timer for given program name.
 func (n *Nanny) SetTimer(name string, timer *Timer) {
-	n.timers.Set(name, timer)
+	n.timersMu.Lock()
+	defer n.timersMu.Unlock()
+	if n.timers == nil {
+		n.timers = make(map[string]*Timer)
+	}
+	n.timers[name] = timer
 }
 
 // GetTimers returns a slice of currently open timers
 func (n *Nanny) GetTimers() []*Timer {
-	timers := make([]*Timer, n.timers.Len())
-	index := 0
-	for timer := range n.timers.Iter() {
-		timers[index] = timer.Value.(*Timer)
-		index = index + 1
+	n.timersMu.RLock()
+	defer n.timersMu.RUnlock()
+	timers := make([]*Timer, 0, len(n.timers))
+	for _, timer := range n.timers {
+		timers = append(timers, timer)
 	}
 	return timers
 }

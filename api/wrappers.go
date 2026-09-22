@@ -50,19 +50,19 @@ func errWrap(handler handler) http.Handler {
 		err := handler(w, r)
 		if err != nil {
 			var e Error
+			var httpErr *httpError
 
-			switch v := err.(type) {
-			case *httpError:
-				w.WriteHeader(v.StatusCode)
+			if errors.As(err, &httpErr) {
+				w.WriteHeader(httpErr.StatusCode)
 				e = Error{
-					StatusCode: v.StatusCode,
-					Message:    v.Error(),
+					StatusCode: httpErr.StatusCode,
+					Message:    httpErr.Error(),
 				}
-			default:
+			} else {
 				w.WriteHeader(http.StatusInternalServerError)
 				e = Error{
 					StatusCode: http.StatusInternalServerError,
-					Message:    v.Error(),
+					Message:    err.Error(),
 				}
 			}
 			w.Header().Set("Content-Type", "application/json")

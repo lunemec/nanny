@@ -1,1 +1,14 @@
 version: "2"
+
+linters:
+  enable:
+    - bodyclose
+    - errcheck
+    - errorlint
+    - govet
+    - ineffassign
+    - modernize
+    - nolintlint
+    - sqlclosecheck
+    - staticcheck
+    - unused

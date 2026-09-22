@@ -12,8 +12,6 @@ import (
 	"strconv"
 	"time"
 
-	"nanny/pkg/closer"
-
 	"github.com/pkg/errors"
 )
 
@@ -63,7 +61,7 @@ func NewWebhook(WebhookURL string,
 
 // Notify implements the Notifier interface for webhook.
 func (w *webhookNotifier) Notify(msg Message) error {
-	postBody, _ := json.Marshal(map[string]interface{}{
+	postBody, _ := json.Marshal(map[string]any{
 		"message": msg.Format(),
 		"meta":    msg.Meta,
 	})
@@ -87,14 +85,21 @@ func (w *webhookNotifier) Notify(msg Message) error {
 	if err != nil {
 		return errors.Wrap(err, "unable to notify via webhook")
 	}
-	defer closeWebhookResponse(response.Body)
+	_, readErr := io.Copy(io.Discard, response.Body)
+	closeErr := response.Body.Close()
+	if readErr != nil {
+		return errors.Wrap(readErr, "unable to read webhook response")
+	}
+	if closeErr != nil {
+		return errors.Wrap(closeErr, "unable to close webhook response")
+	}
 
 	return nil
 }
 
 // NotifyAllClear implements the Notifier interface for webhook.
 func (w *webhookNotifier) NotifyAllClear(msg Message) error {
-	postBody, _ := json.Marshal(map[string]interface{}{
+	postBody, _ := json.Marshal(map[string]any{
 		"message": msg.FormatAllClear(),
 		"meta":    msg.Meta,
 	})
@@ -118,14 +123,16 @@ func (w *webhookNotifier) NotifyAllClear(msg Message) error {
 	if err != nil {
 		return errors.Wrap(err, "unable to notify via webhook")
 	}
-	defer closeWebhookResponse(response.Body)
+	_, readErr := io.Copy(io.Discard, response.Body)
+	closeErr := response.Body.Close()
+	if readErr != nil {
+		return errors.Wrap(readErr, "unable to read webhook response")
+	}
+	if closeErr != nil {
+		return errors.Wrap(closeErr, "unable to close webhook response")
+	}
 
 	return nil
-}
-
-func closeWebhookResponse(body io.ReadCloser) {
-	_, _ = io.Copy(io.Discard, body)
-	closer.Close(body)
 }
 
 func (w *webhookNotifier) String() string {

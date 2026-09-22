@@ -20,7 +20,7 @@ all:
 	@printf $(row) "run" "Run Nanny in dev mode, all logging and race detector ON."
 	@printf $(row) "test" "Run tests."
 	@printf $(row) "vet" "Run go vet."
-	@printf $(row) "lint" "Run gometalinter (you have to install it)."
+	@printf $(row) "lint" "Run the pinned golangci-lint version."
 
 build:
 	go build -trimpath -ldflags "$(LDFLAGS)" -o nanny .
@@ -52,7 +52,7 @@ vet:
 	go vet ./...
 
 lint:
-	golangci-lint run --timeout=60s
+	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2 run ./...
 
 clean:
 	rm nanny || true
