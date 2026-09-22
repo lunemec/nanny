@@ -18,6 +18,7 @@ smtp_server="my.smtp.server"
 smtp_port=587
 smtp_user="someone@somewhere.com"
 smtp_password=""
+smtp_allow_insecure_auth=false # Sends credentials without TLS when explicitly enabled.
 
 [sentry]
 enabled=false

@@ -5,9 +5,8 @@ go 1.27.0
 toolchain go1.27.1
 
 require (
-	github.com/getsentry/raven-go v0.2.0
+	github.com/getsentry/sentry-go v0.49.0
 	github.com/gorilla/mux v1.8.1
-	github.com/mattn/go-xmpp v0.0.0-20210121082723-b40e1294994d
 	github.com/mgutz/logxi v0.0.0-20170321173016-3753102df44e
 	github.com/pkg/errors v0.9.1
 	github.com/slack-go/slack v0.29.0
@@ -15,12 +14,12 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.12.1
 	github.com/twilio/twilio-go v1.31.1
-	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
+	github.com/wneessen/go-mail v0.8.1
+	github.com/xmppo/go-xmpp v0.3.7
 	modernc.org/sqlite v1.59.0
 )
 
 require (
-	github.com/certifi/gocertifi v0.0.0-20200922220541-2c3bb06c6054 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
@@ -43,14 +42,15 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
+	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/mod v0.41.0 // indirect
+	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/telemetry v0.0.0-20260908163034-4bcc4b2ee518 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/tools v0.50.0 // indirect
 	golang.org/x/vuln v1.8.0 // indirect
-	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	modernc.org/libc v1.75.7 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect

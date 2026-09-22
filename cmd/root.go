@@ -43,16 +43,17 @@ type Stderr struct {
 
 // Email notifier config.
 type Email struct {
-	Enabled         bool
-	From            string
-	To              []string
-	Subject         string
-	SubjectAllClear string `mapstructure:"subject_all_clear"`
-	Body            string
-	SMTPServer      string `mapstructure:"smtp_server"`
-	SMTPPort        int    `mapstructure:"smtp_port"`
-	SMTPUser        string `mapstructure:"smtp_user"`
-	SMTPPassword    string `mapstructure:"smtp_password"`
+	Enabled               bool
+	From                  string
+	To                    []string
+	Subject               string
+	SubjectAllClear       string `mapstructure:"subject_all_clear"`
+	Body                  string
+	SMTPServer            string `mapstructure:"smtp_server"`
+	SMTPPort              int    `mapstructure:"smtp_port"`
+	SMTPUser              string `mapstructure:"smtp_user"`
+	SMTPPassword          string `mapstructure:"smtp_password"`
+	SMTPAllowInsecureAuth bool   `mapstructure:"smtp_allow_insecure_auth"`
 }
 
 // Sentry notifier config.
@@ -215,15 +216,16 @@ func makeNotifiers() (map[string]notifier.Notifier, error) {
 	}
 	if config.Email.Enabled {
 		notifiers["email"] = &notifier.Email{
-			From:            config.Email.From,
-			To:              config.Email.To,
-			Subject:         config.Email.Subject,
-			SubjectAllClear: config.Email.SubjectAllClear,
-			Body:            config.Email.Body,
-			Server:          config.Email.SMTPServer,
-			Port:            config.Email.SMTPPort,
-			User:            config.Email.SMTPUser,
-			Password:        config.Email.SMTPPassword,
+			From:              config.Email.From,
+			To:                config.Email.To,
+			Subject:           config.Email.Subject,
+			SubjectAllClear:   config.Email.SubjectAllClear,
+			Body:              config.Email.Body,
+			Server:            config.Email.SMTPServer,
+			Port:              config.Email.SMTPPort,
+			User:              config.Email.SMTPUser,
+			Password:          config.Email.SMTPPassword,
+			AllowInsecureAuth: config.Email.SMTPAllowInsecureAuth,
 		}
 	}
 	if config.Sentry.Enabled {
