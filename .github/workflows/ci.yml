@@ -41,5 +41,8 @@ jobs:
       - name: Test
         run: go test -race -shuffle=on ./...
 
+      - name: Check vulnerabilities
+        run: go tool govulncheck ./...
+
       - name: Build container
         run: docker build --tag nanny:ci .
