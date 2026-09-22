@@ -186,7 +186,8 @@ func (nt *Timer) beginUpdate() func() {
 func (nt *Timer) enqueueDeliveryLocked(delivery timerDelivery) bool {
 	if len(nt.deliveries) >= maxPendingDeliveries {
 		// ponytail: a stuck notifier gets a bounded backlog; later transitions
-		// are dropped until it drains instead of growing memory without limit.
+		// replace the tail so the final remote state still matches the timer.
+		nt.deliveries[len(nt.deliveries)-1] = delivery
 		nt.overflowed = true
 		return false
 	}
@@ -207,7 +208,7 @@ func (nt *Timer) drainDeliveries() {
 			nt.delivering = false
 			nt.lock.Unlock()
 			if overflowed {
-				nt.reportNotifyError(errors.New("notification delivery queue overflow: later transitions were dropped"))
+				nt.reportNotifyError(errors.New("notification delivery queue overflow: older transitions were dropped"))
 			}
 			return
 		}
