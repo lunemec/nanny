@@ -7,9 +7,12 @@ import (
 	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
+
+	"nanny/pkg/closer"
 
 	"github.com/pkg/errors"
 )
@@ -65,6 +68,9 @@ func (w *webhookNotifier) Notify(msg Message) error {
 		"meta":    msg.Meta,
 	})
 	request, err := http.NewRequest("POST", w.WebhookURL, bytes.NewBuffer(postBody))
+	if err != nil {
+		return errors.Wrap(err, "unable to create webhook request")
+	}
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-Program", msg.Program)
 
@@ -77,10 +83,11 @@ func (w *webhookNotifier) Notify(msg Message) error {
 		request.Header.Set("X-HMAC-SHA256", signature)
 	}
 
-	_, err = w.httpClient.Do(request)
+	response, err := w.httpClient.Do(request)
 	if err != nil {
 		return errors.Wrap(err, "unable to notify via webhook")
 	}
+	defer closeWebhookResponse(response.Body)
 
 	return nil
 }
@@ -92,6 +99,9 @@ func (w *webhookNotifier) NotifyAllClear(msg Message) error {
 		"meta":    msg.Meta,
 	})
 	request, err := http.NewRequest("POST", w.WebhookURLAllClear, bytes.NewBuffer(postBody))
+	if err != nil {
+		return errors.Wrap(err, "unable to create webhook request")
+	}
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-Program", msg.Program)
 
@@ -104,12 +114,18 @@ func (w *webhookNotifier) NotifyAllClear(msg Message) error {
 		request.Header.Set("X-HMAC-SHA256", signature)
 	}
 
-	_, err = w.httpClient.Do(request)
+	response, err := w.httpClient.Do(request)
 	if err != nil {
 		return errors.Wrap(err, "unable to notify via webhook")
 	}
+	defer closeWebhookResponse(response.Body)
 
 	return nil
+}
+
+func closeWebhookResponse(body io.ReadCloser) {
+	_, _ = io.Copy(io.Discard, body)
+	closer.Close(body)
 }
 
 func (w *webhookNotifier) String() string {

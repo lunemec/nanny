@@ -11,7 +11,12 @@ import (
 	"github.com/slack-go/slack"
 )
 
-var slackHTTPClient = &http.Client{Timeout: 10 * time.Second}
+var slackHTTPClient = &http.Client{
+	Timeout: 10 * time.Second,
+	CheckRedirect: func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	},
+}
 
 type slackNotifier struct {
 	webhookURL string
@@ -26,7 +31,7 @@ func NewSlack(webhookURL string) (Notifier, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "Unable to initialze slack")
 	}
-	if parsedURL.Host == "" || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
+	if parsedURL.Hostname() == "" || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
 		return nil, errors.New("Unable to initialize slack: webhookURL must be an absolute HTTP or HTTPS URL")
 	}
 
@@ -66,6 +71,10 @@ func (s *slackNotifier) send(text string, meta map[string]string, color string) 
 		slackHTTPClient,
 		payload,
 	); err != nil {
+		var statusError slack.StatusCodeError
+		if errors.As(err, &statusError) && statusError.Code >= http.StatusOK && statusError.Code < http.StatusMultipleChoices {
+			return nil
+		}
 		return fmt.Errorf("unable to notify via Slack: %w", err)
 	}
 	return nil

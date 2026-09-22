@@ -64,6 +64,20 @@ func (d *DummyNotifierWithError) String() string {
 	return "dummy with error"
 }
 
+type AllClearErrorNotifier struct{}
+
+func (d *AllClearErrorNotifier) Notify(notifier.Message) error {
+	return nil
+}
+
+func (d *AllClearErrorNotifier) NotifyAllClear(notifier.Message) error {
+	return fmt.Errorf("all-clear error")
+}
+
+func (d *AllClearErrorNotifier) String() string {
+	return "all-clear error"
+}
+
 func createTimer(nannyName, signalName string, duration time.Duration, meta map[string]string) *nanny.Timer {
 	n := nanny.Nanny{Name: nannyName}
 	dummy := &DummyNotifier{}
@@ -189,6 +203,38 @@ func TestNannyCallsErrorFunc(t *testing.T) {
 		t.Errorf("Nanny did not call ErrorFunc when notify.Notify returned error")
 	}
 	lock.Unlock()
+}
+
+func TestNannyCallsErrorFuncForAllClear(t *testing.T) {
+	errors := make(chan error, 1)
+	n := nanny.Nanny{
+		ErrorFunc: func(err error) {
+			errors <- err
+		},
+	}
+	signal := nanny.Signal{
+		Name:       "test program",
+		Notifier:   &AllClearErrorNotifier{},
+		NextSignal: 10 * time.Millisecond,
+		AllClear:   true,
+	}
+
+	if err := n.Handle(signal); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(50 * time.Millisecond)
+	if err := n.Handle(signal); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case err := <-errors:
+		if !strings.Contains(err.Error(), "all-clear error") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Nanny did not call ErrorFunc for an all-clear notification error")
+	}
 }
 
 func TestNextSignalZero(t *testing.T) {

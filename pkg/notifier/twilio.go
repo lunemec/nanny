@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	twiliosdk "github.com/twilio/twilio-go"
+	twilioclient "github.com/twilio/twilio-go/client"
 	openapi "github.com/twilio/twilio-go/rest/api/v2010"
 )
 
@@ -18,17 +19,21 @@ type twilio struct {
 
 // NewTwilio creates twilio sms sending notifier.
 func NewTwilio(accountSid, authToken, appSid, from, to string) Notifier {
-	client := twiliosdk.NewRestClientWithParams(twiliosdk.ClientParams{
-		Username:   accountSid,
-		Password:   authToken,
-		AccountSid: accountSid,
-	})
+	client := newTwilioRestClient(accountSid, authToken)
 	return &twilio{
 		from:          from,
 		to:            to,
 		appSid:        appSid,
 		createMessage: client.Api.CreateMessage,
 	}
+}
+
+func newTwilioRestClient(accountSid, authToken string) *twiliosdk.RestClient {
+	client := &twilioclient.Client{
+		Credentials: twilioclient.NewCredentials(accountSid, authToken),
+	}
+	client.SetAccountSid(accountSid)
+	return twiliosdk.NewRestClientWithParams(twiliosdk.ClientParams{Client: client})
 }
 
 // Notify implements Notifier interface for twilio.
