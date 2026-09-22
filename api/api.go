@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"nanny/pkg/closer"
@@ -165,16 +166,24 @@ func makeCallbackFunc(store storage.Storage) func(*nanny.Signal) {
 	}
 }
 
-func router(nanny *nanny.Nanny, notifiers notifiers, store storage.Storage) *mux.Router {
+func router(n *nanny.Nanny, enabledNotifiers notifiers, store storage.Storage) *mux.Router {
 	router := mux.NewRouter()
+	// ponytail: one lock keeps timer updates and persistence ordered; use keyed
+	// locks only if signal write throughput becomes a measured bottleneck.
+	var signalMu sync.Mutex
+	serializedSignalHandler := func(n *nanny.Nanny, notifiers notifiers, store storage.Storage, w http.ResponseWriter, req *http.Request) error {
+		signalMu.Lock()
+		defer signalMu.Unlock()
+		return signalHandler(n, notifiers, store, w, req)
+	}
 	// Clarify this is API.
 	apiRouter := router.PathPrefix("/api").Subrouter()
 	apiRouter.Handle("/", panicWrap(headerWrap(errWrap(listEndpoints)))).Name("List all available API endpoints.").Methods("GET")
 	apiRouter.Handle("/version", panicWrap(headerWrap(errWrap(versionHandler)))).Name("Nanny version.").Methods("GET")
 	// In case of future API changes, nanny will support older versions of API.
 	v1Router := apiRouter.PathPrefix("/v1").Subrouter()
-	v1Router.Handle("/signals", panicWrap(headerWrap(errWrap(depWrap(nanny, notifiers, store, getSignalsHandler))))).Name("Show all registered signals.").Methods("GET")
-	v1Router.Handle("/signal", panicWrap(headerWrap(errWrap(depWrap(nanny, notifiers, store, signalHandler))))).Name("Register new signal.").Methods("POST")
+	v1Router.Handle("/signals", panicWrap(headerWrap(errWrap(depWrap(n, enabledNotifiers, store, getSignalsHandler))))).Name("Show all registered signals.").Methods("GET")
+	v1Router.Handle("/signal", panicWrap(headerWrap(errWrap(depWrap(n, enabledNotifiers, store, serializedSignalHandler))))).Name("Register new signal.").Methods("POST")
 
 	err := router.Walk(saveRoutes)
 	if err != nil {

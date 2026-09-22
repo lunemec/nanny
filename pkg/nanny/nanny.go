@@ -79,13 +79,7 @@ func (n *Nanny) validate(s Signal) (validSignal, error) {
 func (n *Nanny) handle(s validSignal) error {
 	timer, created := n.getOrCreateTimer(s)
 	if !created {
-		// Timer exists, reset the timer to the new signal value.
-		// Send all-clear notification if requested
-		if s.AllClear && timer.expired(time.Now()) {
-			timer.ResetAllClear(s)
-		} else {
-			timer.Reset(s)
-		}
+		timer.resetAfterHeartbeat(s)
 	}
 
 	return nil

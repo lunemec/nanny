@@ -43,12 +43,12 @@ func NewWebhook(WebhookURL string,
 		return nil, errors.New("unable to initialize webhook: webhookURL_all_clear is empty")
 	}
 
-	httpClient := &http.Client{Timeout: time.Second * RequestTimeout}
+	httpClient := &http.Client{Timeout: RequestTimeout}
 	if AllowInsecureTLS {
 		transport := &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		}
-		httpClient = &http.Client{Transport: transport, Timeout: time.Second * RequestTimeout}
+		httpClient = &http.Client{Transport: transport, Timeout: RequestTimeout}
 	}
 
 	return &webhookNotifier{
@@ -61,49 +61,26 @@ func NewWebhook(WebhookURL string,
 
 // Notify implements the Notifier interface for webhook.
 func (w *webhookNotifier) Notify(msg Message) error {
-	postBody, _ := json.Marshal(map[string]any{
-		"message": msg.Format(),
-		"meta":    msg.Meta,
-	})
-	request, err := http.NewRequest("POST", w.WebhookURL, bytes.NewBuffer(postBody))
-	if err != nil {
-		return fmt.Errorf("unable to create webhook request: %w", err)
-	}
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("X-Program", msg.Program)
-
-	if w.WebhookSecret != "" {
-		timestamp := strconv.FormatInt(time.Now().Unix(), 10)
-		payload := append([]byte(timestamp), postBody...)
-		signature := ComputeHmacSha256(w.WebhookSecret, payload)
-
-		request.Header.Set("X-Timestamp", timestamp)
-		request.Header.Set("X-HMAC-SHA256", signature)
-	}
-
-	response, err := w.httpClient.Do(request)
-	if err != nil {
-		return fmt.Errorf("unable to notify via webhook: %w", err)
-	}
-	_, readErr := io.Copy(io.Discard, response.Body)
-	closeErr := response.Body.Close()
-	if readErr != nil {
-		return fmt.Errorf("unable to read webhook response: %w", readErr)
-	}
-	if closeErr != nil {
-		return fmt.Errorf("unable to close webhook response: %w", closeErr)
-	}
-
-	return nil
+	return w.notify(msg, false)
 }
 
 // NotifyAllClear implements the Notifier interface for webhook.
 func (w *webhookNotifier) NotifyAllClear(msg Message) error {
+	return w.notify(msg, true)
+}
+
+func (w *webhookNotifier) notify(msg Message, allClear bool) error {
+	webhookURL := w.WebhookURL
+	message := msg.Format()
+	if allClear {
+		webhookURL = w.WebhookURLAllClear
+		message = msg.FormatAllClear()
+	}
 	postBody, _ := json.Marshal(map[string]any{
-		"message": msg.FormatAllClear(),
+		"message": message,
 		"meta":    msg.Meta,
 	})
-	request, err := http.NewRequest("POST", w.WebhookURLAllClear, bytes.NewBuffer(postBody))
+	request, err := http.NewRequest("POST", webhookURL, bytes.NewBuffer(postBody))
 	if err != nil {
 		return fmt.Errorf("unable to create webhook request: %w", err)
 	}
@@ -130,6 +107,9 @@ func (w *webhookNotifier) NotifyAllClear(msg Message) error {
 	}
 	if closeErr != nil {
 		return fmt.Errorf("unable to close webhook response: %w", closeErr)
+	}
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("webhook returned HTTP status %s", response.Status)
 	}
 
 	return nil

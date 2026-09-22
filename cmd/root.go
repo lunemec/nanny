@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
 	"nanny/api"
@@ -333,7 +334,8 @@ func initConfig() {
 	}
 
 	viper.SetEnvPrefix("nanny") // prefix ENV variables with NANNY_
-	viper.AutomaticEnv()        // read in environment variables that match
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	viper.AutomaticEnv() // read in environment variables that match
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
