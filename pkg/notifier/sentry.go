@@ -1,37 +1,55 @@
 package notifier
 
 import (
-	"github.com/getsentry/raven-go"
-	"github.com/pkg/errors"
+	"fmt"
+	"time"
+
+	"github.com/getsentry/sentry-go"
 )
 
-type sentry struct {
-	cli *raven.Client
+type sentryNotifier struct {
+	capture func(string, map[string]string) *sentry.EventID
 }
 
 // NewSentry creates sentry notifier from supplied DSN.
 func NewSentry(dsn string) (Notifier, error) {
-	cli, err := raven.New(dsn)
+	transport := sentry.NewHTTPSyncTransport()
+	transport.Timeout = 10 * time.Second
+	client, err := sentry.NewClient(sentry.ClientOptions{
+		Dsn:                    dsn,
+		Transport:              transport,
+		DisableTelemetryBuffer: true,
+	})
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to initialize sentry")
+		return nil, fmt.Errorf("unable to initialize sentry: %w", err)
 	}
-	return &sentry{cli: cli}, nil
+
+	return &sentryNotifier{
+		capture: func(message string, tags map[string]string) *sentry.EventID {
+			scope := sentry.NewScope()
+			scope.SetTags(tags)
+			return client.CaptureMessage(message, nil, scope)
+		},
+	}, nil
+}
+
+func (n *sentryNotifier) send(message string, tags map[string]string) error {
+	if eventID := n.capture(message, tags); eventID == nil {
+		return fmt.Errorf("unable to notify via sentry: event was not accepted")
+	}
+	return nil
 }
 
 // Notify implements Notifier interface for sentry.
-func (n *sentry) Notify(msg Message) error {
-	// This may block since it is run in its own goroutine.
-	n.cli.CaptureMessageAndWait(msg.Format(), msg.Meta)
-	return nil
+func (n *sentryNotifier) Notify(msg Message) error {
+	return n.send(msg.Format(), msg.Meta)
 }
 
 // NotifyAllClear implements Notifier interface for sentry.
-func (n *sentry) NotifyAllClear(msg Message) error {
-	// This may block since it is run in its own goroutine.
-	n.cli.CaptureMessageAndWait(msg.FormatAllClear(), msg.Meta)
-	return nil
+func (n *sentryNotifier) NotifyAllClear(msg Message) error {
+	return n.send(msg.FormatAllClear(), msg.Meta)
 }
 
-func (n *sentry) String() string {
+func (n *sentryNotifier) String() string {
 	return "sentry"
 }

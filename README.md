@@ -190,6 +190,11 @@ This can be done in the config file or by setting `NANNY_STORAGE_DSN` ENV variab
 ## Logging
 By default, nanny logs only errors. To enable more verbose logging, use `LOGXI=*` environment variable.
 
+SMTP uses implicit TLS on port 465 and opportunistic STARTTLS on other ports. The
+`email.smtp_allow_insecure_auth` option permits credentials to be sent without
+TLS for trusted tunnels or legacy servers; enabling it can expose the SMTP
+username and password on the network.
+
 ## Adding custom data (tags) to notifications
 You can add extra meta-data to the API calls, which will be passed to all the notifiers. Metadata must conform to type `map[string]string`.
 
