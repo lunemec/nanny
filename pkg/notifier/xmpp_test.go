@@ -2,6 +2,7 @@ package notifier
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -79,8 +80,14 @@ func TestXmppAlertAllClearAndClose(t *testing.T) {
 	if chats[0].Remote != "one@example.com" || chats[1].Remote != "two@example.com" {
 		t.Fatalf("chats = %+v", chats)
 	}
-	if chats[0].Text == chats[2].Text {
-		t.Fatalf("alert and all-clear text are equal: %q", chats[0].Text)
+	wantAlert := fmt.Sprintf("%s (Meta: %v)", msg.Format(), msg.Meta)
+	wantAllClear := fmt.Sprintf("%s (Meta: %v)", msg.FormatAllClear(), msg.Meta)
+	wantRecipients := []string{"one@example.com", "two@example.com", "one@example.com", "two@example.com"}
+	wantTexts := []string{wantAlert, wantAlert, wantAllClear, wantAllClear}
+	for i, chat := range chats {
+		if chat.Remote != wantRecipients[i] || chat.Text != wantTexts[i] {
+			t.Fatalf("chats[%d] = %+v, want recipient %q and text %q", i, chat, wantRecipients[i], wantTexts[i])
+		}
 	}
 }
 

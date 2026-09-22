@@ -8,7 +8,7 @@ import (
 )
 
 type sentryNotifier struct {
-	capture func(string, map[string]string) *sentry.EventID
+	capture func(string, map[string]string, sentry.Level) *sentry.EventID
 }
 
 // NewSentry creates sentry notifier from supplied DSN.
@@ -25,16 +25,17 @@ func NewSentry(dsn string) (Notifier, error) {
 	}
 
 	return &sentryNotifier{
-		capture: func(message string, tags map[string]string) *sentry.EventID {
+		capture: func(message string, tags map[string]string, level sentry.Level) *sentry.EventID {
 			scope := sentry.NewScope()
 			scope.SetTags(tags)
-			return client.CaptureMessage(message, nil, scope)
+			event := client.EventFromMessage(message, level)
+			return client.CaptureEvent(event, nil, scope)
 		},
 	}, nil
 }
 
 func (n *sentryNotifier) send(message string, tags map[string]string) error {
-	if eventID := n.capture(message, tags); eventID == nil {
+	if eventID := n.capture(message, tags, sentry.LevelError); eventID == nil {
 		return fmt.Errorf("unable to notify via sentry: event was not accepted")
 	}
 	return nil
