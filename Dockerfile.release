@@ -1,4 +1,4 @@
-FROM docker.io/library/alpine:3.23
+FROM docker.io/library/alpine:3.24
 
 LABEL org.opencontainers.image.source="https://github.com/lunemec/nanny" \
       org.opencontainers.image.licenses="BSD-3-Clause"
