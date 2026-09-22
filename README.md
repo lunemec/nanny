@@ -1,5 +1,10 @@
 
 # Nanny
+
+<p align="center">
+  <img src="assets/nanny-gopher.png" alt="Nanny gopher mascot watching for a missing heartbeat" width="360">
+</p>
+
 [![CI](https://github.com/lunemec/nanny/actions/workflows/ci.yml/badge.svg)](https://github.com/lunemec/nanny/actions/workflows/ci.yml) [![Go Report Card](https://goreportcard.com/badge/github.com/lunemec/nanny)](https://goreportcard.com/report/github.com/lunemec/nanny) [![Maintainability](https://api.codeclimate.com/v1/badges/224b9390145c2e5a8046/maintainability)](https://codeclimate.com/github/lunemec/nanny/maintainability)
 
 Nanny is a monitoring tool that monitors the **absence of activity**.
