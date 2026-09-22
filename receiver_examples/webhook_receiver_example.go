@@ -4,7 +4,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
-	"io/ioutil"
+	"io"
 	"log"
 	"math"
 	"net/http"
@@ -24,13 +24,13 @@ func main() {
 		webhookSecret := ""
 
 		if r.Method != http.MethodPost {
-			http.Error(w, "Method Not Allowed", 405)
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
 		contentType := r.Header.Get("Content-Type")
 		if contentType != "application/json" {
-			http.Error(w, "Unsupported Media Type", 415)
+			http.Error(w, "Unsupported Media Type", http.StatusUnsupportedMediaType)
 			return
 		}
 
@@ -41,10 +41,12 @@ func main() {
 		requestTimestamp := r.Header.Get("X-Timestamp")
 		hmacSHA256 := r.Header.Get("X-HMAC-SHA256")
 
-		body, err := ioutil.ReadAll(r.Body)
-		defer r.Body.Close()
+		body, err := io.ReadAll(r.Body)
+		if closeErr := r.Body.Close(); closeErr != nil {
+			log.Printf("close request body: %v", closeErr)
+		}
 		if err != nil {
-			http.Error(w, "Internal Server Error", 500)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
 
@@ -59,22 +61,22 @@ func main() {
 				log.Println("Signature is correct")
 			} else {
 				log.Println("Signature is not correct")
-				http.Error(w, "Unauthorized", 401)
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
 			}
 			currentTimestampInt, err := strconv.Atoi(currentTimestamp)
 			if err != nil {
-				http.Error(w, "Internal Server Error", 500)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
 			requestTimestampInt, err := strconv.Atoi(requestTimestamp)
 			if err != nil {
-				http.Error(w, "Bad Request", 400)
+				http.Error(w, "Bad Request", http.StatusBadRequest)
 				return
 			}
 			if int(math.Abs(float64(currentTimestampInt-requestTimestampInt))) > 10 {
 				log.Println("Timestamp is older than 10 seconds")
-				http.Error(w, "Bad Request", 400)
+				http.Error(w, "Bad Request", http.StatusBadRequest)
 				return
 			} else {
 				log.Println("Timestamp is not older than 10 seconds")
@@ -84,5 +86,5 @@ func main() {
 		log.Println("--------------------------------------------------------------------------------------")
 	})
 
-	http.ListenAndServe(":8081", nil)
+	log.Fatal(http.ListenAndServe(":8081", nil))
 }

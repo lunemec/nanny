@@ -1,7 +1,7 @@
 package api
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -84,6 +84,18 @@ func serverSetup(t *testing.T) *httptest.Server {
 	return httptest.NewServer(routerSetup(t))
 }
 
+func readResponseBody(t *testing.T, resp *http.Response) []byte {
+	t.Helper()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("close response body: %v", err)
+		}
+	}()
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	return body
+}
+
 func TestAPIVersion(t *testing.T) {
 	assert.HTTPBodyContains(t, routerSetup(t).ServeHTTP, "GET", "/api/version", url.Values{}, version.VersionString)
 }
@@ -112,9 +124,7 @@ func TestAPINoNotifier(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
-	body, err := ioutil.ReadAll(resp.Body)
-	defer resp.Body.Close()
-	require.NoError(t, err)
+	body := readResponseBody(t, resp)
 
 	assert.Equal(t, 400, resp.StatusCode)
 	expected := `{"status_code":400, "error":"unable to find notifier: N/A"}`
@@ -132,9 +142,7 @@ func TestAPISignal(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
-	body, err := ioutil.ReadAll(resp.Body)
-	defer resp.Body.Close()
-	require.NoError(t, err)
+	body := readResponseBody(t, resp)
 
 	assert.Equal(t, 200, resp.StatusCode)
 	expected := `{"status_code":200, "status":"OK"}`
@@ -156,9 +164,7 @@ func TestAPISignalAcceptsInt(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
-	body, err := ioutil.ReadAll(resp.Body)
-	defer resp.Body.Close()
-	require.NoError(t, err)
+	body := readResponseBody(t, resp)
 
 	assert.Equal(t, 200, resp.StatusCode)
 	expected := `{"status_code":200, "status":"OK"}`

@@ -66,7 +66,9 @@ func (nt *Timer) Reset(vs validSignal) {
 
 // ResetAllClear updates the nannyTimers signal to reset the timer
 func (nt *Timer) ResetAllClear(vs validSignal) {
-	nt.notifyAllClear()
+	if err := nt.notifyAllClear(); err != nil {
+		nt.reportNotifyError(err)
+	}
 
 	nt.lock.Lock()
 	defer nt.lock.Unlock()
@@ -82,13 +84,7 @@ func (nt *Timer) ResetAllClear(vs validSignal) {
 func (nt *Timer) onExpire() {
 	err := nt.notify()
 	if err != nil {
-		// Add context to the error message and call ErrorFunc.
-		err = errors.Wrapf(err, "error calling notifier: %T with signal: %+v", nt.signal.Notifier, nt.signal)
-		if nt.nanny.ErrorFunc == nil {
-			defaultErrorFunc(err)
-		} else {
-			nt.nanny.ErrorFunc(err)
-		}
+		nt.reportNotifyError(err)
 	}
 
 	// Call callback if set.
@@ -98,6 +94,15 @@ func (nt *Timer) onExpire() {
 		nt.signal.CallbackFunc(&signal)
 	}
 	nt.lock.Unlock()
+}
+
+func (nt *Timer) reportNotifyError(err error) {
+	err = errors.Wrapf(err, "error calling notifier: %T with signal: %+v", nt.signal.Notifier, nt.signal)
+	if nt.nanny.ErrorFunc == nil {
+		defaultErrorFunc(err)
+		return
+	}
+	nt.nanny.ErrorFunc(err)
 }
 
 func (nt *Timer) notify() error {

@@ -73,7 +73,7 @@ var routes = map[string]string{}
 // Handler returns http.Handler and error. This way we can customise
 // http.Server and just pass in our handlers.
 func (a *Server) Handler() (http.Handler, error) {
-	if a.Notifiers == nil || len(a.Notifiers) == 0 {
+	if len(a.Notifiers) == 0 {
 		return nil, errors.New("no notifier is set, enable at least one in config")
 	}
 	if a.Name != "" {

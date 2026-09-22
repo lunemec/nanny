@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	twilioclient "github.com/twilio/twilio-go/client"
 	openapi "github.com/twilio/twilio-go/rest/api/v2010"
 )
 
@@ -18,6 +19,20 @@ func TestNewTwilio(t *testing.T) {
 	}
 	if n.createMessage == nil {
 		t.Fatal("NewTwilio() did not initialize the message sender")
+	}
+}
+
+func TestTwilioCredentialsDoNotUseAmbientEnvironment(t *testing.T) {
+	t.Setenv("TWILIO_ACCOUNT_SID", "ambient-account")
+	t.Setenv("TWILIO_AUTH_TOKEN", "ambient-token")
+
+	restClient := newTwilioRestClient("", "")
+	baseClient, ok := restClient.Client.(*twilioclient.Client)
+	if !ok {
+		t.Fatalf("unexpected Twilio base client type %T", restClient.Client)
+	}
+	if baseClient.Username != "" || baseClient.Password != "" || baseClient.AccountSid() != "" {
+		t.Fatalf("Twilio client used ambient credentials: %#v", baseClient.Credentials)
 	}
 }
 

@@ -22,6 +22,7 @@ func TestNewSlack(t *testing.T) {
 		{name: "relative URL", webhookURL: "/hook", wantError: true},
 		{name: "unsupported scheme", webhookURL: "ftp://example.com/hook", wantError: true},
 		{name: "missing host", webhookURL: "https:///hook", wantError: true},
+		{name: "port without host", webhookURL: "http://:8080/hook", wantError: true},
 	}
 
 	for _, test := range tests {
@@ -29,6 +30,25 @@ func TestNewSlack(t *testing.T) {
 			_, err := NewSlack(test.webhookURL)
 			if (err != nil) != test.wantError {
 				t.Fatalf("NewSlack(%q) error = %v, wantError %v", test.webhookURL, err, test.wantError)
+			}
+		})
+	}
+}
+
+func TestSlackHTTPSuccess(t *testing.T) {
+	for _, status := range []int{http.StatusCreated, http.StatusAccepted, http.StatusNoContent} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(status)
+			}))
+			defer server.Close()
+
+			n, err := NewSlack(server.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := n.Notify(Message{}); err != nil {
+				t.Fatalf("Notify() returned an error for HTTP %d: %v", status, err)
 			}
 		})
 	}
@@ -133,5 +153,28 @@ func TestSlackNetworkError(t *testing.T) {
 	}
 	if err := n.Notify(Message{}); err == nil {
 		t.Fatal("Notify() returned nil for a network error")
+	}
+}
+
+func TestSlackRedirectError(t *testing.T) {
+	redirectedRequests := 0
+	destination := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		redirectedRequests++
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer destination.Close()
+
+	server := httptest.NewServer(http.RedirectHandler(destination.URL, http.StatusFound))
+	defer server.Close()
+
+	n, err := NewSlack(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := n.Notify(Message{}); err == nil {
+		t.Fatal("Notify() returned nil for a redirect response")
+	}
+	if redirectedRequests != 0 {
+		t.Fatalf("redirect target received %d requests, want 0", redirectedRequests)
 	}
 }
