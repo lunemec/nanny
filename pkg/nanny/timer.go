@@ -97,10 +97,7 @@ func (nt *Timer) scheduleLocked() {
 		return
 	}
 	generation := nt.generation
-	delay := time.Until(nt.end)
-	if delay < 0 {
-		delay = 0
-	}
+	delay := max(time.Until(nt.end), 0)
 	nt.timer = time.AfterFunc(delay, func() {
 		nt.onExpire(generation)
 	})

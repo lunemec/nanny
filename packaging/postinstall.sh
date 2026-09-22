@@ -22,6 +22,7 @@ if [ -z "${2:-}" ] && command -v deb-systemd-helper >/dev/null 2>&1; then
 fi
 
 if [ -d /run/systemd/system ] && command -v deb-systemd-invoke >/dev/null 2>&1; then
+	systemctl daemon-reload >/dev/null || true
 	if [ -n "${2:-}" ]; then
 		deb-systemd-invoke try-restart nanny.service >/dev/null || true
 	else
