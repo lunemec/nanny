@@ -354,12 +354,22 @@ func TestPersistencePanicDoesNotWedgeLaterUpdates(t *testing.T) {
 }
 
 type queueBlockingNotifier struct {
-	started chan struct{}
-	release chan struct{}
-	once    sync.Once
+	started    chan struct{}
+	release    chan struct{}
+	once       sync.Once
+	deliveries []bool
 }
 
 func (n *queueBlockingNotifier) Notify(notifier.Message) error {
+	return n.notify(false)
+}
+
+func (n *queueBlockingNotifier) NotifyAllClear(notifier.Message) error {
+	return n.notify(true)
+}
+
+func (n *queueBlockingNotifier) notify(allClear bool) error {
+	n.deliveries = append(n.deliveries, allClear)
 	blocked := false
 	n.once.Do(func() {
 		blocked = true
@@ -369,10 +379,6 @@ func (n *queueBlockingNotifier) Notify(notifier.Message) error {
 		<-n.release
 	}
 	return nil
-}
-
-func (n *queueBlockingNotifier) NotifyAllClear(message notifier.Message) error {
-	return n.Notify(message)
 }
 
 func (n *queueBlockingNotifier) String() string { return "queue blocking" }
@@ -394,6 +400,7 @@ func TestBlockedNotifierHasBoundedDeliveryQueue(t *testing.T) {
 	delivery := timerDelivery{signal: timer.signal}
 
 	timer.lock.Lock()
+	timer.alerted = true
 	start := timer.enqueueDeliveryLocked(delivery)
 	timer.lock.Unlock()
 	if !start {
@@ -402,9 +409,11 @@ func TestBlockedNotifierHasBoundedDeliveryQueue(t *testing.T) {
 	go timer.drainDeliveries()
 	<-notif.started
 
-	for range maxPendingDeliveries + 100 {
+	for i := range maxPendingDeliveries + 101 {
+		allClear := i%2 == 0
 		timer.lock.Lock()
-		timer.enqueueDeliveryLocked(delivery)
+		timer.alerted = !allClear
+		timer.enqueueDeliveryLocked(timerDelivery{signal: timer.signal, allClear: allClear})
 		timer.lock.Unlock()
 	}
 	timer.lock.Lock()
@@ -420,6 +429,13 @@ func TestBlockedNotifierHasBoundedDeliveryQueue(t *testing.T) {
 	case err := <-reportedErrors:
 		if !strings.Contains(err.Error(), "queue overflow") {
 			t.Fatalf("overflow error = %v", err)
+		}
+		timer.lock.Lock()
+		alerted := timer.alerted
+		timer.lock.Unlock()
+		lastAllClear := notif.deliveries[len(notif.deliveries)-1]
+		if lastAllClear == alerted {
+			t.Fatalf("last delivery all-clear=%t, timer alerted=%t", lastAllClear, alerted)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("queue overflow was not reported after delivery resumed")
