@@ -91,7 +91,7 @@ docker run -d -p 8080:8080 \
 
 - Use the `docker run` environment variable parameter `-e` in combination with `NANNY_<CONFIG_PROPERTY_HERE>` to override `nanny.toml` file configurations.
 - Optionally, mount your own configuration at `/etc/nanny/nanny.toml` and persist state at `/var/lib/nanny`.
-- The `0.4` container stored its binary, configuration, and database under `/opt`. Before upgrading a persistent `0.4` deployment, copy its `nanny.toml` to `/etc/nanny/nanny.toml` and its SQLite database to `/var/lib/nanny/nanny.sqlite`, then update volume mounts.
+- The `0.4` container stored its binary, configuration, and database under `/opt`. Before upgrading a persistent `0.4` deployment, copy its `nanny.toml` to `/etc/nanny/nanny.toml` and its SQLite database to `/var/lib/nanny/nanny.sqlite`, keep the migrated files owned by UID/GID `1000:1000`, then update volume mounts.
 
 Additionally, it's possible to run Nanny using the provided Docker Compose file (see [docker-compose.yml](docker-compose.yml)):
 ```yml

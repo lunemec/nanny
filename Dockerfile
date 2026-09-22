@@ -15,15 +15,13 @@ LABEL org.opencontainers.image.source="https://github.com/lunemec/nanny" \
       org.opencontainers.image.licenses="BSD-3-Clause"
 
 RUN apk add --no-cache ca-certificates \
-    && addgroup -S nanny \
-    && adduser -S -D -H -h /var/lib/nanny -s /sbin/nologin -G nanny nanny \
+    && addgroup -S -g 1000 nanny \
+    && adduser -S -D -H -u 1000 -h /var/lib/nanny -s /sbin/nologin -G nanny nanny \
     && install -d -o nanny -g nanny /etc/nanny /var/lib/nanny
 
 COPY --chmod=0755 --from=build /nanny /usr/bin/nanny
 COPY --chown=nanny:nanny nanny.toml /etc/nanny/nanny.toml
-
-ENV NANNY_ADDR=0.0.0.0:8080 \
-    NANNY_STORAGE_DSN=file:/var/lib/nanny/nanny.sqlite
+RUN sed -i 's/addr="localhost:8080"/addr="0.0.0.0:8080"/' /etc/nanny/nanny.toml
 
 USER nanny
 WORKDIR /var/lib/nanny

@@ -28,9 +28,12 @@ func TestParseLogLevel(t *testing.T) {
 		{name: "fatal short", value: "*=FTL", want: slog.LevelError},
 		{name: "fatal", value: "*=FATAL", want: slog.LevelError},
 		{name: "off", value: "*=OFF", want: logLevelOff},
+		{name: "short off", value: "-*", want: logLevelOff},
 		{name: "case insensitive", value: "*=info", want: slog.LevelInfo},
 		{name: "named ignored", value: "named=INF", want: slog.LevelError},
 		{name: "last global wins", value: "*=DEBUG,named=ERROR,*=WARN,other=OFF", want: slog.LevelWarn},
+		{name: "short off wins", value: "*=DEBUG,-*", want: logLevelOff},
+		{name: "later global re-enables", value: "-*,*=INFO", want: slog.LevelInfo},
 		{name: "last malformed global falls back", value: "*=DEBUG,*=NOPE", want: slog.LevelError},
 		{name: "malformed", value: "NOPE", want: slog.LevelError},
 	}

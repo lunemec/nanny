@@ -3,6 +3,7 @@ package nanny
 import (
 	"errors"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -305,5 +306,122 @@ func TestDifferentSignalPersistenceIsIndependent(t *testing.T) {
 		timer.lock.Lock()
 		timer.timer.Stop()
 		timer.lock.Unlock()
+	}
+}
+
+func TestPersistencePanicDoesNotWedgeLaterUpdates(t *testing.T) {
+	for _, firstUpdate := range []bool{true, false} {
+		name := "reset"
+		if firstUpdate {
+			name = "initial"
+		}
+		t.Run(name, func(t *testing.T) {
+			n := &Nanny{}
+			notif := &functionNotifier{notify: func(notifier.Message) error { return nil }}
+			signal := Signal{Name: "program", Notifier: notif, NextSignal: time.Hour}
+			if !firstUpdate {
+				if err := n.Handle(signal); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			panicked := false
+			func() {
+				defer func() { panicked = recover() != nil }()
+				_ = n.HandleWithPersistence(signal, func(Signal, time.Time) { panic("persistence failed") })
+			}()
+			if !panicked {
+				t.Fatal("persistence callback did not panic")
+			}
+
+			result := make(chan error, 1)
+			go func() { result <- n.Handle(signal) }()
+			select {
+			case err := <-result:
+				if err != nil {
+					t.Fatalf("Handle() after recovered panic error = %v", err)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("Handle() after recovered persistence panic deadlocked")
+			}
+
+			timer := n.GetTimer(signal.Name)
+			timer.lock.Lock()
+			timer.timer.Stop()
+			timer.lock.Unlock()
+		})
+	}
+}
+
+type queueBlockingNotifier struct {
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (n *queueBlockingNotifier) Notify(notifier.Message) error {
+	blocked := false
+	n.once.Do(func() {
+		blocked = true
+		close(n.started)
+	})
+	if blocked {
+		<-n.release
+	}
+	return nil
+}
+
+func (n *queueBlockingNotifier) NotifyAllClear(message notifier.Message) error {
+	return n.Notify(message)
+}
+
+func (n *queueBlockingNotifier) String() string { return "queue blocking" }
+
+func TestBlockedNotifierHasBoundedDeliveryQueue(t *testing.T) {
+	notif := &queueBlockingNotifier{started: make(chan struct{}), release: make(chan struct{})}
+	var releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(notif.release) }) }
+	defer release()
+	reportedErrors := make(chan error, 1)
+	timer := &Timer{
+		nanny: &Nanny{ErrorFunc: func(err error) { reportedErrors <- err }},
+		signal: validSignal{
+			Name:       "program",
+			Notifier:   notif,
+			NextSignal: time.Hour,
+		},
+	}
+	delivery := timerDelivery{signal: timer.signal}
+
+	timer.lock.Lock()
+	start := timer.enqueueDeliveryLocked(delivery)
+	timer.lock.Unlock()
+	if !start {
+		t.Fatal("first delivery did not start a drainer")
+	}
+	go timer.drainDeliveries()
+	<-notif.started
+
+	for range maxPendingDeliveries + 100 {
+		timer.lock.Lock()
+		timer.enqueueDeliveryLocked(delivery)
+		timer.lock.Unlock()
+	}
+	timer.lock.Lock()
+	queued := len(timer.deliveries)
+	overflowed := timer.overflowed
+	timer.lock.Unlock()
+	if queued != maxPendingDeliveries || !overflowed {
+		t.Fatalf("queued=%d overflowed=%t, want queued=%d overflowed=true", queued, overflowed, maxPendingDeliveries)
+	}
+
+	release()
+	select {
+	case err := <-reportedErrors:
+		if !strings.Contains(err.Error(), "queue overflow") {
+			t.Fatalf("overflow error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("queue overflow was not reported after delivery resumed")
 	}
 }

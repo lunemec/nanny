@@ -28,7 +28,7 @@ func parseLogLevel(value string) slog.Level {
 				continue
 			}
 			expression = strings.TrimSpace(configuredLevel)
-		} else if expression != "*" {
+		} else if expression != "*" && expression != "-*" {
 			continue
 		}
 
@@ -52,7 +52,7 @@ func parseGlobalLogLevel(value string) (slog.Level, bool) {
 		return slog.LevelWarn, true
 	case "ERR", "ERROR", "FTL", "FATAL":
 		return slog.LevelError, true
-	case "OFF":
+	case "OFF", "-*":
 		return logLevelOff, true
 	default:
 		return slog.LevelError, false

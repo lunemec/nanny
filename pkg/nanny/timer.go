@@ -2,6 +2,7 @@ package nanny
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"sync"
@@ -9,6 +10,8 @@ import (
 
 	"nanny/pkg/notifier"
 )
+
+const maxPendingDeliveries = 64
 
 // Timer encapsulates a signal and its timer
 type Timer struct {
@@ -25,6 +28,7 @@ type Timer struct {
 	lastUpdate chan struct{}
 	deliveries []timerDelivery
 	delivering bool
+	overflowed bool
 }
 
 type timerDelivery struct {
@@ -80,35 +84,38 @@ func (nt *Timer) resetAfterHeartbeat(vs validSignal, persist func(Signal, time.T
 }
 
 func (nt *Timer) reset(vs validSignal, sendAllClear, forceAllClear bool, persist func(Signal, time.Time)) {
-	complete := nt.beginUpdate()
+	startDelivery := func() bool {
+		complete := nt.beginUpdate()
+		defer complete()
 
-	nt.lock.Lock()
-	previous := nt.signal
-	shouldSendAllClear := sendAllClear && (forceAllClear || nt.alerted)
-	if nt.timer != nil {
-		nt.timer.Stop()
-	}
-	nt.signal = vs
-	nt.end = time.Now().Add(nt.signal.NextSignal)
-	nt.generation++
-	nt.alerted = false
-	nt.persist = persist
-	deadline := nt.end
-	nt.lock.Unlock()
+		nt.lock.Lock()
+		previous := nt.signal
+		shouldSendAllClear := sendAllClear && (forceAllClear || nt.alerted)
+		if nt.timer != nil {
+			nt.timer.Stop()
+		}
+		nt.signal = vs
+		nt.end = time.Now().Add(nt.signal.NextSignal)
+		nt.generation++
+		nt.alerted = false
+		nt.persist = persist
+		deadline := nt.end
+		nt.lock.Unlock()
 
-	if persist != nil {
-		persist(Signal(vs), deadline)
-	}
+		if persist != nil {
+			persist(Signal(vs), deadline)
+		}
 
-	nt.lock.Lock()
-	nt.scheduleLocked()
-	startDelivery := false
-	if shouldSendAllClear {
-		startDelivery = nt.enqueueDeliveryLocked(timerDelivery{signal: previous, allClear: true})
-	}
-	nt.lock.Unlock()
+		nt.lock.Lock()
+		nt.scheduleLocked()
+		start := false
+		if shouldSendAllClear {
+			start = nt.enqueueDeliveryLocked(timerDelivery{signal: previous, allClear: true})
+		}
+		nt.lock.Unlock()
+		return start
+	}()
 
-	complete()
 	if startDelivery {
 		go nt.drainDeliveries()
 	}
@@ -134,28 +141,30 @@ func (nt *Timer) scheduleLocked() {
 }
 
 func (nt *Timer) onExpire(generation uint64) {
-	complete := nt.beginUpdate()
+	startDelivery := func() bool {
+		complete := nt.beginUpdate()
+		defer complete()
 
-	nt.lock.Lock()
-	if generation != nt.generation || nt.alerted {
+		nt.lock.Lock()
+		if generation != nt.generation || nt.alerted {
+			nt.lock.Unlock()
+			return false
+		}
+		nt.alerted = true
+		signal := nt.signal
+		persist := nt.persist
 		nt.lock.Unlock()
-		complete()
-		return
-	}
-	nt.alerted = true
-	signal := nt.signal
-	persist := nt.persist
-	nt.lock.Unlock()
 
-	if persist != nil {
-		persist(Signal(signal), time.Time{})
-	}
+		if persist != nil {
+			persist(Signal(signal), time.Time{})
+		}
 
-	nt.lock.Lock()
-	startDelivery := nt.enqueueDeliveryLocked(timerDelivery{signal: signal})
-	nt.lock.Unlock()
+		nt.lock.Lock()
+		start := nt.enqueueDeliveryLocked(timerDelivery{signal: signal})
+		nt.lock.Unlock()
+		return start
+	}()
 
-	complete()
 	if startDelivery {
 		go nt.drainDeliveries()
 	}
@@ -175,6 +184,12 @@ func (nt *Timer) beginUpdate() func() {
 }
 
 func (nt *Timer) enqueueDeliveryLocked(delivery timerDelivery) bool {
+	if len(nt.deliveries) >= maxPendingDeliveries {
+		// ponytail: a stuck notifier gets a bounded backlog; later transitions
+		// are dropped until it drains instead of growing memory without limit.
+		nt.overflowed = true
+		return false
+	}
 	nt.deliveries = append(nt.deliveries, delivery)
 	if nt.delivering {
 		return false
@@ -187,8 +202,13 @@ func (nt *Timer) drainDeliveries() {
 	for {
 		nt.lock.Lock()
 		if len(nt.deliveries) == 0 {
+			overflowed := nt.overflowed
+			nt.overflowed = false
 			nt.delivering = false
 			nt.lock.Unlock()
+			if overflowed {
+				nt.reportNotifyError(errors.New("notification delivery queue overflow: later transitions were dropped"))
+			}
 			return
 		}
 		delivery := nt.deliveries[0]

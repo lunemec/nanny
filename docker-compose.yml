@@ -6,7 +6,12 @@ services:
     restart: always
     ports:
       - 8080:8080
+    volumes:
+      - nanny-data:/var/lib/nanny
     environment:
       NANNY_ADDR: 0.0.0.0:8080
       # Uncomment to enable debugging messages:
       LOGXI: '*'
+
+volumes:
+  nanny-data:
