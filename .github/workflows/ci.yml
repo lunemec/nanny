@@ -57,6 +57,19 @@ jobs:
       - name: Build container
         run: docker build --tag nanny:ci .
 
+      - name: Test container runtime layout
+        run: |
+          docker run --rm --entrypoint /bin/sh nanny:ci -ec '
+            test "$(id -u)" = 1000
+            test "$(id -g)" = 1000
+            test "$PWD" = /var/lib/nanny
+            test -x /usr/bin/nanny
+            test -w /var/lib/nanny
+            grep -q '\''addr="0.0.0.0:8080"'\'' /etc/nanny/nanny.toml
+            test -z "$NANNY_ADDR"
+            test -z "$NANNY_STORAGE_DSN"
+          '
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 

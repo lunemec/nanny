@@ -245,15 +245,15 @@ func TestNannyCallsErrorFuncForAllClear(t *testing.T) {
 	}
 }
 
-func TestNextSignalZero(t *testing.T) {
-	n := nanny.Nanny{}
-	signal := nanny.Signal{
-		Notifier: &DummyNotifier{},
-	}
-
-	err := n.Handle(signal)
-	if err == nil {
-		t.Errorf("nanny.Handle should return error when signal.Handler is nil\n")
+func TestNextSignalMustBePositive(t *testing.T) {
+	for _, duration := range []time.Duration{0, -time.Second} {
+		t.Run(duration.String(), func(t *testing.T) {
+			n := nanny.Nanny{}
+			err := n.Handle(nanny.Signal{Notifier: &DummyNotifier{}, NextSignal: duration})
+			if err == nil {
+				t.Fatalf("Handle() with NextSignal %s returned no error", duration)
+			}
+		})
 	}
 }
 

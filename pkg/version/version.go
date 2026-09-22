@@ -4,7 +4,7 @@ import (
 	"fmt"
 )
 
-// These variables are filled using `govvv` tool using -ldflags. Do not modify them.
+// These variables are filled using linker flags at build time. Do not modify them.
 var (
 	// BuildDate ... well guess.
 	BuildDate = ""

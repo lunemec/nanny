@@ -82,8 +82,8 @@ func (n *Nanny) validate(s Signal) (validSignal, error) {
 		return vs, errors.New("signal.Handler is nil")
 	}
 
-	if s.NextSignal == 0 {
-		return vs, errors.New("signal.NextSignal cannot be 0")
+	if s.NextSignal <= 0 {
+		return vs, errors.New("signal.NextSignal must be greater than 0")
 	}
 
 	return validSignal(s), nil
@@ -107,8 +107,10 @@ func (n *Nanny) handle(s validSignal, persist func(Signal, time.Time)) {
 		complete := timer.beginUpdate()
 		n.timers[s.Name] = timer
 		n.timersMu.Unlock()
-		timer.initialize()
-		complete()
+		func() {
+			defer complete()
+			timer.initialize()
+		}()
 		return
 	}
 	n.timersMu.Unlock()
