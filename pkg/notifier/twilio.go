@@ -1,63 +1,62 @@
 package notifier
 
 import (
-	"github.com/pkg/errors"
-	"github.com/sfreiberg/gotwilio"
+	"errors"
+	"fmt"
+
+	twiliosdk "github.com/twilio/twilio-go"
+	openapi "github.com/twilio/twilio-go/rest/api/v2010"
 )
 
 type twilio struct {
 	from string
 	to   string
 
-	appSid string
-	t      *gotwilio.Twilio
+	appSid        string
+	createMessage func(*openapi.CreateMessageParams) (*openapi.ApiV2010Message, error)
 }
 
 // NewTwilio creates twilio sms sending notifier.
 func NewTwilio(accountSid, authToken, appSid, from, to string) Notifier {
+	client := twiliosdk.NewRestClientWithParams(twiliosdk.ClientParams{
+		Username:   accountSid,
+		Password:   authToken,
+		AccountSid: accountSid,
+	})
 	return &twilio{
-		t:    gotwilio.NewTwilioClient(accountSid, authToken),
-		from: from,
-		to:   to,
+		from:          from,
+		to:            to,
+		appSid:        appSid,
+		createMessage: client.Api.CreateMessage,
 	}
 }
 
 // Notify implements Notifier interface for twilio.
 func (n *twilio) Notify(msg Message) error {
-	resp, exc, err := n.t.SendSMS(n.from, n.to, msg.Format(), "", n.appSid)
-	if err != nil {
-		return errors.Wrap(err, "unable to send SMS via twilio")
-	}
-	if exc != nil {
-		return errors.Errorf("error while sending SMS via twilio: %+v", exc)
-	}
-	// I know it does not make sense that resp would be nil, but since the type
-	// is *gotwilio.SmsResponse we should check.
-	if resp == nil {
-		return errors.Errorf("*gotwilio.SmsResponse is nil, WUT?")
-	}
-	if resp.Status == "undelivered" || resp.Status == "failed" {
-		return errors.Errorf("unable to send SMS via twilio: %+v", resp)
-	}
-	return nil
+	return n.send(msg.Format())
 }
 
 // NotifyAllClear implements Notifier interface for twilio.
 func (n *twilio) NotifyAllClear(msg Message) error {
-	resp, exc, err := n.t.SendSMS(n.from, n.to, msg.FormatAllClear(), "", n.appSid)
+	return n.send(msg.FormatAllClear())
+}
+
+func (n *twilio) send(body string) error {
+	params := new(openapi.CreateMessageParams)
+	params.SetFrom(n.from).SetTo(n.to).SetBody(body)
+	if n.appSid != "" {
+		params.SetApplicationSid(n.appSid)
+	}
+
+	resp, err := n.createMessage(params)
 	if err != nil {
-		return errors.Wrap(err, "unable to send SMS via twilio")
+		return fmt.Errorf("unable to send SMS via Twilio: %w", err)
 	}
-	if exc != nil {
-		return errors.Errorf("error while sending SMS via twilio: %+v", exc)
-	}
-	// I know it does not make sense that resp would be nil, but since the type
-	// is *gotwilio.SmsResponse we should check.
 	if resp == nil {
-		return errors.Errorf("*gotwilio.SmsResponse is nil, WUT?")
+		return errors.New("unable to send SMS via Twilio: empty response")
 	}
-	if resp.Status == "undelivered" || resp.Status == "failed" {
-		return errors.Errorf("unable to send SMS via twilio: %+v", resp)
+	if resp.Status != nil && (*resp.Status == "undelivered" || *resp.Status == "failed") {
+		return fmt.Errorf("unable to send SMS via Twilio: status %s", *resp.Status)
 	}
 	return nil
 }
