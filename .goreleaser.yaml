@@ -107,6 +107,7 @@ dockers_v2:
       - "--provenance={{ if .IsSnapshot }}false{{ else }}mode=max{{ end }}"
 
 release:
+  target_commitish: "{{ .FullCommit }}"
   github:
     owner: lunemec
     name: nanny

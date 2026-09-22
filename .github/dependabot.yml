@@ -25,3 +25,16 @@ updates:
         update-types:
           - minor
           - patch
+
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Prague
+    groups:
+      docker-minor-and-patch:
+        update-types:
+          - minor
+          - patch

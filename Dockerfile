@@ -1,7 +1,5 @@
 FROM docker.io/library/golang:1.27.1-alpine AS build
 
-LABEL maintainer="Philip Schmid (@PhilipSchmid)"
-
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
@@ -13,20 +11,23 @@ RUN CGO_ENABLED=0 go build -trimpath -tags netgo -ldflags "-s -w -X nanny/pkg/ve
 
 FROM docker.io/library/alpine:3.23
 
-RUN apk add --no-cache ca-certificates
+LABEL org.opencontainers.image.source="https://github.com/lunemec/nanny" \
+      org.opencontainers.image.licenses="BSD-3-Clause"
 
-RUN adduser -s /sbin/nologin -u 1000 -H -h /opt -D nanny
+RUN apk add --no-cache ca-certificates \
+    && addgroup -S nanny \
+    && adduser -S -D -H -h /var/lib/nanny -s /sbin/nologin -G nanny nanny \
+    && install -d -o nanny -g nanny /etc/nanny /var/lib/nanny
 
-RUN mkdir -p /opt
+COPY --chmod=0755 --from=build /nanny /usr/bin/nanny
+COPY --chown=nanny:nanny nanny.toml /etc/nanny/nanny.toml
 
-COPY --chown=1000:1000 --from=build /nanny /opt/
-COPY --chown=1000:1000 nanny.toml /opt/
-RUN sed -i 's/addr="localhost:8080"/addr="0.0.0.0:8080"/g' /opt/nanny.toml
-RUN sed -i -r 's/storage_dsn="file:nanny.sqlite".*/storage_dsn="file:\/opt\/nanny.sqlite"/g' /opt/nanny.toml
-RUN chown -R nanny:nanny /opt
+ENV NANNY_ADDR=0.0.0.0:8080 \
+    NANNY_STORAGE_DSN=file:/var/lib/nanny/nanny.sqlite
 
 USER nanny
+WORKDIR /var/lib/nanny
 EXPOSE 8080
 
-ENTRYPOINT ["/opt/nanny"]
-CMD ["--config", "/opt/nanny.toml"]
+ENTRYPOINT ["/usr/bin/nanny"]
+CMD ["--config", "/etc/nanny/nanny.toml"]
