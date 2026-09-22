@@ -1,5 +1,6 @@
 .git
 build
+dist
 nanny
 nanny.sqlite
 *.tar.gz

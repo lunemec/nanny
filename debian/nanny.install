@@ -1,2 +1,0 @@
-build/nanny /usr/bin
-nanny.toml /etc/nanny

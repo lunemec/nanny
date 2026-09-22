@@ -19,9 +19,8 @@ Nanny can notify you via these channels (for now):
 Run API server:
 ```bash
 $ LOGXI=* ./nanny
-14:21:07.969059 INF ~ Using config file
-   path: nanny.toml
-14:21:07.977322 INF ~ Nanny listening addr: localhost:8080
+{"level":"INFO","msg":"Using config file","path":"nanny.toml"}
+{"level":"INFO","msg":"Nanny listening","addr":"localhost:8080"}
 ```
 Call it via curl:
 ```bash
@@ -35,7 +34,8 @@ After 5s pass, nanny prints to *stderr*:
 ```
 
 ## Installation
-The easiest way is to download .tar.gz from **releases** section, edit `nanny.toml` and run it.
+The easiest way is to download the Linux amd64 `.tar.gz` or `.deb` from the
+[releases](https://github.com/lunemec/nanny/releases), edit `nanny.toml`, and run it.
 
 Or you can clone this repository and compile it yourself:
 ```bash
@@ -46,9 +46,11 @@ make build
 
 Note that Nanny requires Go >= 1.27 to build.
 
-An alternative way of using Nanny is to run it inside a Docker container. You must build the Nanny container image first by using the command `make docker`/`make buildah`. Afterwards, a dockerized Nanny instance can be started like this:
+Nanny is also published to GitHub Container Registry and Docker Hub. Both names
+refer to the same image:
 ```bash
-docker run -d -p 8080:8080 -e "NANNY_NAME=MyNanny" lunemec/nanny:latest
+docker run -d -p 8080:8080 -e "NANNY_NAME=MyNanny" ghcr.io/lunemec/nanny:latest
+# Equivalent image: docker.io/lunemec/nanny:latest
 ```
 **Note:** 
 - Use the `docker run` environment variable parameter `-e` in combination with `NANNY_<CONFIG_PROPERTY_HERE>` to override `nanny.toml` file configurations. 
@@ -213,14 +215,32 @@ Contributions welcome! Just be sure you run tests and lints.
 $ make
   Build
 make build                            Build production binary.
-make docker                           Build a Nanny Docker conainer using Docker
-make buildah                          Build a Nanny Docker conainer using Buildah
+make docker                           Build a Nanny container using Docker.
+make snapshot                         Build release artifacts without publishing.
+make release-check                    Validate the GoReleaser configuration.
   Dev
 make run                              Run Nanny in dev mode, all logging and race detector ON.
 make test                             Run tests.
 make vet                              Run go vet.
-make lint                             Run golangci-lint (you have to install it).
+make lint                             Run the pinned golangci-lint version.
 ```
+
+## Releasing
+
+Releases are manual. From a clean checkout with an unprefixed version tag at
+`HEAD` (for example `0.5.0`), log in to both registries, provide a GitHub token,
+and publish:
+
+```bash
+make snapshot
+docker login ghcr.io
+docker login docker.io
+GITHUB_TOKEN=... make release
+```
+
+GoReleaser creates the GitHub release, Linux amd64 archive, Debian package,
+SHA-256 checksums, and matching GHCR and Docker Hub images. CI only builds a
+non-publishing snapshot.
 
 ## FAQ
 > Why write such a tool?

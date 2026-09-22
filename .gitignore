@@ -12,6 +12,7 @@
 *.out
 
 build/
+dist/
 nanny
 nanny.sqlite
 *.tar.gz
