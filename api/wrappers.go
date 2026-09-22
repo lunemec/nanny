@@ -2,14 +2,13 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
+	"log/slog"
 	"net/http"
 
 	"nanny/pkg/nanny"
 	"nanny/pkg/storage"
 	"nanny/pkg/version"
-
-	log "github.com/mgutz/logxi"
-	"github.com/pkg/errors"
 )
 
 // panicWrap recovers from runtime panics, logs and returns message to user.
@@ -25,9 +24,9 @@ func panicWrap(handler http.Handler) http.Handler {
 				case error:
 					err = t
 				default:
-					err = errors.New("Unknown error")
+					err = errors.New("unknown error")
 				}
-				log.Error("Panic recovered", "err", err)
+				slog.Error("Panic recovered", "err", err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
 		}()
@@ -50,9 +49,9 @@ func errWrap(handler handler) http.Handler {
 		err := handler(w, r)
 		if err != nil {
 			var e Error
-			var httpErr *httpError
+			w.Header().Set("Content-Type", "application/json")
 
-			if errors.As(err, &httpErr) {
+			if httpErr, ok := errors.AsType[*httpError](err); ok {
 				w.WriteHeader(httpErr.StatusCode)
 				e = Error{
 					StatusCode: httpErr.StatusCode,
@@ -65,17 +64,15 @@ func errWrap(handler handler) http.Handler {
 					Message:    err.Error(),
 				}
 			}
-			w.Header().Set("Content-Type", "application/json")
-
 			out, err := json.Marshal(e)
 			if err != nil {
-				log.Error("Error returning JSON error", "err", err)
+				slog.Error("Error returning JSON error", "err", err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			_, err = w.Write(out)
 			if err != nil {
-				log.Error("Error writing response with JSON error", "err", err)
+				slog.Error("Error writing response with JSON error", "err", err)
 				return
 			}
 			return

@@ -1,13 +1,12 @@
 package nanny
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
 	"nanny/pkg/notifier"
-
-	"github.com/pkg/errors"
 )
 
 // Nanny represents the main functionality with its `Handle` func.
@@ -55,7 +54,7 @@ func defaultErrorFunc(err error) {
 func (n *Nanny) Handle(s Signal) error {
 	vs, err := n.validate(s)
 	if err != nil {
-		return errors.Wrap(err, "signal is invalid")
+		return fmt.Errorf("signal is invalid: %w", err)
 	}
 
 	return n.handle(vs)

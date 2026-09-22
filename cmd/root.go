@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,8 +18,6 @@ import (
 	"nanny/pkg/notifier"
 	"nanny/pkg/storage"
 
-	log "github.com/mgutz/logxi"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -137,23 +137,23 @@ func nannyCheck(nanny string) {
 	}
 	data, err := json.Marshal(&signal)
 	if err != nil {
-		log.Error("Unable to marshall JSON to notify pair nanny", "err", err)
+		slog.Error("Unable to marshall JSON to notify pair nanny", "err", err)
 		return
 	}
 
 	for {
 		resp, err := client.Post(nanny, "application/json", bytes.NewReader(data))
 		if err != nil {
-			log.Error("Unable to notify my pair nanny", "other_nanny", nanny, "err", err)
+			slog.Error("Unable to notify my pair nanny", "other_nanny", nanny, "err", err)
 			time.Sleep(time.Duration(5) * time.Second)
 			continue
 		}
 		if resp.StatusCode != 200 {
-			log.Error("Pair nanny returned error", "status_code", resp.StatusCode)
+			slog.Error("Pair nanny returned error", "status_code", resp.StatusCode)
 		}
 		_, _ = io.Copy(io.Discard, resp.Body)
 		if err := resp.Body.Close(); err != nil {
-			log.Error("Unable to close pair nanny response", "err", err)
+			slog.Error("Unable to close pair nanny response", "err", err)
 		}
 
 		// We have to sleep for less than 1s, because there will be some network
@@ -166,11 +166,11 @@ func runAPI() {
 	// Create notifiers according to config.
 	notifiers, err := makeNotifiers()
 	if err != nil {
-		log.Fatal("Unable to initialize notifiers", "err", err)
+		fatal("Unable to initialize notifiers", "err", err)
 	}
 	store, err := storage.NewSQLiteDB(config.StorageDSN)
 	if err != nil {
-		log.Fatal("Unable to create/load sqlite storage", "dsn", config.StorageDSN, "err", err)
+		fatal("Unable to create/load sqlite storage", "dsn", config.StorageDSN, "err", err)
 	}
 	defer closer.Close(store)
 
@@ -181,7 +181,7 @@ func runAPI() {
 	}
 	handler, err := api.Handler()
 	if err != nil {
-		log.Fatal("Unable to create API handlers.", "err", err)
+		fatal("Unable to create API handlers.", "err", err)
 	}
 
 	server := http.Server{
@@ -200,10 +200,10 @@ func runAPI() {
 	idleConnsClosed := make(chan struct{})
 	go shutdown(&server, idleConnsClosed)
 
-	log.Info("Nanny listening", "addr", server.Addr)
+	slog.Info("Nanny listening", "addr", server.Addr)
 	err = server.ListenAndServe()
 	if !errors.Is(err, http.ErrServerClosed) {
-		log.Fatal("Unable to start API server", "err", err)
+		fatal("Unable to start API server", "err", err)
 	}
 
 	<-idleConnsClosed
@@ -231,7 +231,7 @@ func makeNotifiers() (map[string]notifier.Notifier, error) {
 	if config.Sentry.Enabled {
 		sentryNotifier, err := notifier.NewSentry(config.Sentry.DSN)
 		if err != nil {
-			return nil, errors.Wrap(err, "unable to create sentry notifier")
+			return nil, fmt.Errorf("unable to create sentry notifier: %w", err)
 		}
 		notifiers["sentry"] = sentryNotifier
 	}
@@ -247,7 +247,7 @@ func makeNotifiers() (map[string]notifier.Notifier, error) {
 	if config.Slack.Enabled {
 		slackNotifier, err := notifier.NewSlack(config.Slack.WebhookURL)
 		if err != nil {
-			return nil, errors.Wrap(err, "unable to create slack notifier")
+			return nil, fmt.Errorf("unable to create slack notifier: %w", err)
 		}
 		notifiers["slack"] = slackNotifier
 	}
@@ -260,7 +260,7 @@ func makeNotifiers() (map[string]notifier.Notifier, error) {
 			config.Webhook.AllowInsecureTLS,
 		)
 		if err != nil {
-			return nil, errors.Wrap(err, "unable to create webhook notifier")
+			return nil, fmt.Errorf("unable to create webhook notifier: %w", err)
 		}
 		notifiers["webhook"] = webhookNotifier
 	}
@@ -275,7 +275,7 @@ func makeNotifiers() (map[string]notifier.Notifier, error) {
 			config.Xmpp.XMPPNoTLS,
 		)
 		if err != nil {
-			return nil, errors.Wrap(err, "unable to create xmpp notifier")
+			return nil, fmt.Errorf("unable to create xmpp notifier: %w", err)
 		}
 		notifiers["xmpp"] = xmppNotifier
 	}
@@ -289,12 +289,12 @@ func shutdown(server *http.Server, idleConnsClosed chan struct{}) {
 	sigint := make(chan os.Signal, 1)
 	signal.Notify(sigint, os.Interrupt)
 	<-sigint
-	log.Info("Nanny shutting down.")
+	slog.Info("Nanny shutting down.")
 
 	// We received an interrupt signal, shut down.
 	if err := server.Shutdown(context.Background()); err != nil {
 		// Error from closing listeners, or context timeout:
-		log.Error("HTTP server Shutdown: %v", err)
+		slog.Error("HTTP server shutdown", "err", err)
 	}
 	close(idleConnsClosed)
 }
@@ -302,6 +302,7 @@ func shutdown(server *http.Server, idleConnsClosed chan struct{}) {
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
+	configureLogging(os.Getenv("LOGXI"), os.Stdout)
 	if err := RootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -338,11 +339,16 @@ func initConfig() {
 	if err := viper.ReadInConfig(); err == nil {
 		err = viper.Unmarshal(&config)
 		if err != nil {
-			log.Error("Unable to decode config file", "err", err)
+			slog.Error("Unable to decode config file", "err", err)
 		}
-		log.Info("Using config file", "path", viper.ConfigFileUsed())
+		slog.Info("Using config file", "path", viper.ConfigFileUsed())
 	} else {
-		log.Warn("Config not found, using default stderr notifier.")
+		slog.Warn("Config not found, using default stderr notifier.")
 		config.Stderr.Enabled = true
 	}
+}
+
+func fatal(message string, args ...any) {
+	slog.Error(message, args...)
+	os.Exit(1)
 }

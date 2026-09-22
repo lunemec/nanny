@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 	"time"
-
-	"github.com/pkg/errors"
 )
 
 // StdErr implements Notifier interface for stderr output.
@@ -15,14 +13,20 @@ type StdErr struct{}
 func (n *StdErr) Notify(msg Message) error {
 	text := fmt.Sprintf("%s: %s (Meta: %v)\n", time.Now().Format(time.RFC3339), msg.Format(), msg.Meta)
 	_, err := os.Stderr.WriteString(text)
-	return errors.Wrap(err, "unable to notify via stderr")
+	if err != nil {
+		return fmt.Errorf("unable to notify via stderr: %w", err)
+	}
+	return nil
 }
 
 // NotifyAllClear to stderr.
 func (n *StdErr) NotifyAllClear(msg Message) error {
 	text := fmt.Sprintf("%s: %s (Meta: %v)\n", time.Now().Format(time.RFC3339), msg.FormatAllClear(), msg.Meta)
 	_, err := os.Stderr.WriteString(text)
-	return errors.Wrap(err, "unable to notify via stderr")
+	if err != nil {
+		return fmt.Errorf("unable to notify via stderr: %w", err)
+	}
+	return nil
 }
 
 // MarshalJSON marshals the stderr notifier into a "stderr" string

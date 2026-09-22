@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -107,6 +108,14 @@ func TestListEndpoints(t *testing.T) {
 		"/api/version":"Nanny version."
 	}`
 	assert.JSONEq(t, expected, got)
+}
+
+func TestHTTPErrorPreservesWrappedError(t *testing.T) {
+	wantErr := errors.New("sentinel")
+	err := &httpError{StatusCode: http.StatusBadRequest, Err: wantErr}
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("errors.Is(%v, %v) = false", err, wantErr)
+	}
 }
 
 func TestHandlerRestoresPersistedSignal(t *testing.T) {

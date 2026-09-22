@@ -2,8 +2,10 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"strconv"
@@ -16,8 +18,6 @@ import (
 	"nanny/pkg/version"
 
 	"github.com/gorilla/mux"
-	log "github.com/mgutz/logxi"
-	"github.com/pkg/errors"
 )
 
 // Server is Nanny API Server.
@@ -62,6 +62,10 @@ func (e *httpError) Error() string {
 	return e.Err.Error()
 }
 
+func (e *httpError) Unwrap() error {
+	return e.Err
+}
+
 type handler func(http.ResponseWriter, *http.Request) error
 type handlerWithDeps func(*nanny.Nanny, notifiers, storage.Storage, http.ResponseWriter, *http.Request) error
 type notifiers map[string]notifier.Notifier
@@ -81,7 +85,7 @@ func (a *Server) Handler() (http.Handler, error) {
 	}
 
 	a.nanny.ErrorFunc = func(err error) {
-		log.Error("Notify error", "err", err)
+		slog.Error("Notify error", "err", err)
 	}
 
 	// Load persisted signals, if any.
@@ -97,7 +101,7 @@ func loadStorage(n *nanny.Nanny, notifiers notifiers, store storage.Storage) {
 		msg := "Unable to load persisted signals. " +
 			"There may have been saved signals you will not be notified about! " +
 			"Please check services using Nanny manually."
-		log.Warn(msg)
+		slog.Warn(msg)
 		return
 	}
 	// create callback func using our storage.
@@ -109,10 +113,10 @@ func loadStorage(n *nanny.Nanny, notifiers notifiers, store storage.Storage) {
 		if signal.NextSignal.Before(time.Now()) {
 			msg := "Found previously stored notifier that is stale. Please check " +
 				"this program manually."
-			log.Warn(msg, "program", signal.Name, "should_notify", signal.NextSignal.String())
+			slog.Warn(msg, "program", signal.Name, "should_notify", signal.NextSignal.String())
 			err = store.Remove(signal)
 			if err != nil {
-				log.Error("Unable to remove stale signal.", "err", err)
+				slog.Error("Unable to remove stale signal.", "err", err)
 			}
 			continue
 		}
@@ -121,7 +125,7 @@ func loadStorage(n *nanny.Nanny, notifiers notifiers, store storage.Storage) {
 		if !ok {
 			msg := "Unable to find previously stored notifier. It may have been " +
 				"disabled. Please check this program manually."
-			log.Warn(msg, "program", signal.Name)
+			slog.Warn(msg, "program", signal.Name)
 		}
 		s := nanny.Signal{
 			Name:       signal.Name,
@@ -137,10 +141,10 @@ func loadStorage(n *nanny.Nanny, notifiers notifiers, store storage.Storage) {
 		if err != nil {
 			msg := "Unable to create signal handler from previous run," +
 				" please check this program manually."
-			log.Warn(msg, "program", signal.Name, "err", err)
+			slog.Warn(msg, "program", signal.Name, "err", err)
 			continue
 		}
-		log.Info("Loaded persisted signal successful.",
+		slog.Info("Loaded persisted signal successful.",
 			"program", signal.Name,
 			"next_signal", s.NextSignal.String(),
 			"all_clear", s.AllClear,
@@ -156,7 +160,7 @@ func makeCallbackFunc(store storage.Storage) func(*nanny.Signal) {
 	return func(signal *nanny.Signal) {
 		err := store.Remove(storage.Signal{Name: signal.Name})
 		if err != nil {
-			log.Error("Error removing signal from storage.", "err", err, "signal", signal)
+			slog.Error("Error removing signal from storage.", "err", err, "signal", signal)
 		}
 	}
 }
@@ -174,7 +178,7 @@ func router(nanny *nanny.Nanny, notifiers notifiers, store storage.Storage) *mux
 
 	err := router.Walk(saveRoutes)
 	if err != nil {
-		log.Error("router.Walk doesnt want to walk", "err", err)
+		slog.Error("router.Walk doesnt want to walk", "err", err)
 	}
 
 	return router
@@ -185,12 +189,12 @@ func router(nanny *nanny.Nanny, notifiers notifiers, store storage.Storage) *mux
 func listEndpoints(w http.ResponseWriter, req *http.Request) error {
 	js, err := json.Marshal(routes)
 	if err != nil {
-		return errors.Wrap(err, "unable to marshal url routes to json")
+		return fmt.Errorf("unable to marshal url routes to json: %w", err)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_, err = w.Write(js)
 	if err != nil {
-		return errors.Wrap(err, "unable to write output")
+		return fmt.Errorf("unable to write output: %w", err)
 	}
 	return nil
 }
@@ -198,8 +202,10 @@ func listEndpoints(w http.ResponseWriter, req *http.Request) error {
 // versionHandler simply returns version of this nanny.
 func versionHandler(w http.ResponseWriter, req *http.Request) error {
 	w.WriteHeader(http.StatusOK)
-	_, err := io.WriteString(w, version.VersionString)
-	return errors.Wrap(err, "unable to reply with version")
+	if _, err := io.WriteString(w, version.VersionString); err != nil {
+		return fmt.Errorf("unable to reply with version: %w", err)
+	}
+	return nil
 }
 
 // signalHandler handles incomming register/ping signal from a source.
@@ -214,7 +220,7 @@ func signalHandler(n *nanny.Nanny, notifiers notifiers, store storage.Storage, w
 	if err != nil {
 		return &httpError{
 			StatusCode: http.StatusBadRequest,
-			Err:        errors.Wrap(err, "unable to decode JSON"),
+			Err:        fmt.Errorf("unable to decode JSON: %w", err),
 		}
 	}
 
@@ -222,14 +228,14 @@ func signalHandler(n *nanny.Nanny, notifiers notifiers, store storage.Storage, w
 	if !ok {
 		return &httpError{
 			StatusCode: http.StatusBadRequest,
-			Err:        errors.Errorf("unable to find notifier: %s", signal.Notifier),
+			Err:        fmt.Errorf("unable to find notifier: %s", signal.Notifier),
 		}
 	}
 
 	s := constructSignal(signal, notif, store, req)
 	err = n.Handle(s)
 	if err != nil {
-		return errors.Wrap(err, "unable to handle signal")
+		return fmt.Errorf("unable to handle signal: %w", err)
 	}
 
 	err = store.Save(storage.Signal{
@@ -243,7 +249,7 @@ func signalHandler(n *nanny.Nanny, notifiers notifiers, store storage.Storage, w
 	// This error should not be on the API but only logged. Notifications will still
 	// work.
 	if err != nil {
-		log.Error("Error saving signal to persistent storage", "err", err)
+		slog.Error("Error saving signal to persistent storage", "err", err)
 	}
 	// When everything is OK, we should return JSON with "status_code": 200, and
 	// message "status": "OK".
@@ -285,7 +291,7 @@ func constructSignal(jsonSignal Signal, notif notifier.Notifier, store storage.S
 		CallbackFunc: func(s *nanny.Signal) {
 			err := store.Remove(storage.Signal{Name: s.Name})
 			if err != nil {
-				log.Error("Error removing signal from storage.", "err", err, "signal", jsonSignal)
+				slog.Error("Error removing signal from storage.", "err", err, "signal", jsonSignal)
 			}
 		},
 	}
@@ -306,7 +312,7 @@ func constructName(name string, req *http.Request) string {
 	// Split addr:port and add address to the name in format {programName}@{addr}.
 	host, _, err := net.SplitHostPort(remoteAddr)
 	if err != nil {
-		log.Warn("Unable to split host from port, using whole remote address.", "addr", remoteAddr, "err", err)
+		slog.Warn("Unable to split host from port, using whole remote address.", "addr", remoteAddr, "err", err)
 		return fmt.Sprintf("%s@%s", name, remoteAddr)
 	}
 
@@ -332,7 +338,7 @@ func constructDuration(nextSignal string) time.Duration {
 func saveRoutes(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
 	path, err := route.GetPathTemplate()
 	if err != nil {
-		return errors.Wrap(err, "unable to save route")
+		return fmt.Errorf("unable to save route: %w", err)
 	}
 	routes[path] = route.GetName()
 	return nil
