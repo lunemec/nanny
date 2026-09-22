@@ -1,72 +1,215 @@
 package storage_test
 
 import (
-	"fmt"
-	"os"
+	"database/sql"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"nanny/pkg/storage"
 )
 
-var sqliteStorage storage.Storage
-
-func TestMain(m *testing.M) {
-	var err error
-	sqliteStorage, err = storage.NewSQLiteDB("file::memory:")
+func newStorage(t *testing.T, dsn string) storage.Storage {
+	t.Helper()
+	store, err := storage.NewSQLiteDB(dsn)
 	if err != nil {
-		fmt.Printf("Error setting up storage test: %s\n", err)
-		os.Exit(1)
+		t.Fatalf("NewSQLiteDB() error = %v", err)
 	}
-	os.Exit(m.Run())
+	t.Cleanup(func() {
+		if err := store.Close(); err != nil {
+			t.Errorf("Close() error = %v", err)
+		}
+	})
+	return store
 }
 
-// TestSQLiteDataConsistency tests that data we saved will be loaded the same. There
-// were some issues with timezones.
-func TestSQLiteDataConsistency(t *testing.T) {
+func TestSQLiteSaveUpdateLoadRemove(t *testing.T) {
+	store := newStorage(t, "file:save-update?mode=memory&cache=shared")
+	nextSignal := time.Date(2026, time.September, 22, 12, 34, 56, 123456789, time.FixedZone("CEST", 2*60*60))
 	signal := storage.Signal{
 		Name:       "test",
-		NextSignal: time.Now(),
+		NextSignal: nextSignal,
 		Notifier:   "stderr",
+		AllClear:   true,
 		Meta:       map[string]string{"meta": "data"},
 	}
-	err := sqliteStorage.Save(signal)
-	if err != nil {
-		t.Errorf("signal save failed: %s", err)
+
+	if err := store.Save(signal); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+	signal.Notifier = "slack"
+	signal.Meta["updated"] = "yes"
+	if err := store.Save(signal); err != nil {
+		t.Fatalf("Save() update error = %v", err)
 	}
 
-	signals, err := sqliteStorage.Load()
+	signals, err := store.Load()
 	if err != nil {
-		t.Errorf("signal load failed: %s", err)
+		t.Fatalf("Load() error = %v", err)
 	}
-
 	if len(signals) != 1 {
-		t.Error("there should be exactly 1 signal loaded")
+		t.Fatalf("Load() returned %d signals, want 1", len(signals))
+	}
+	got := signals[0]
+	if got.Name != signal.Name || got.Notifier != signal.Notifier || got.AllClear != signal.AllClear {
+		t.Fatalf("Load() = %+v, want %+v", got, signal)
+	}
+	if !got.NextSignal.Equal(nextSignal) {
+		t.Fatalf("NextSignal = %v, want %v", got.NextSignal, nextSignal)
+	}
+	if got.NextSignal.Location() != time.UTC {
+		t.Fatalf("NextSignal location = %v, want UTC", got.NextSignal.Location())
+	}
+	if got.Meta["meta"] != "data" || got.Meta["updated"] != "yes" {
+		t.Fatalf("Meta = %#v", got.Meta)
 	}
 
-	compareSignals(t, signal, signals[0])
+	if err := store.Remove(signal); err != nil {
+		t.Fatalf("Remove() error = %v", err)
+	}
+	if err := store.Remove(storage.Signal{}); err != nil {
+		t.Fatalf("Remove(empty) error = %v", err)
+	}
+	signals, err = store.Load()
+	if err != nil {
+		t.Fatalf("Load() after remove error = %v", err)
+	}
+	if len(signals) != 0 {
+		t.Fatalf("Load() after remove returned %d signals, want 0", len(signals))
+	}
 }
 
-func compareSignals(t *testing.T, this storage.Signal, other storage.Signal) {
-	if this.Name != other.Name {
-		t.Errorf("saved signal is not equal to loaded signal, saved: %+v, loaded: %+v", this.Name, other.Name)
+func TestSQLiteLoadsOldSchemaAndTimestamp(t *testing.T) {
+	dsn := filepath.Join(t.TempDir(), "old.sqlite")
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.Exec(`CREATE TABLE signal (
+		name TEXT PRIMARY KEY NOT NULL,
+		notifier TEXT NULL,
+		next_signal DATETIME NULL,
+		all_clear INTEGER DEFAULT 0 NULL,
+		meta TEXT NULL
+	)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.Exec(
+		"INSERT INTO signal (name, notifier, next_signal, all_clear, meta) VALUES (?, ?, ?, ?, ?)",
+		"legacy", "stderr", "2021-07-08 09:10:11.123456789+02:00", 1, `{"legacy":"metadata"}`,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
 	}
 
-	// We have to strip monotonic clock readings before comparing.
-	// See: https://golang.org/pkg/time/#hdr-Monotonic_Clocks
-	if this.NextSignal.Round(0) != other.NextSignal {
-		t.Errorf("saved signal is not equal to loaded signal, saved: %+v, loaded: %+v", this.NextSignal, other.NextSignal)
+	store := newStorage(t, dsn)
+	signals, err := store.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if len(signals) != 1 {
+		t.Fatalf("Load() returned %d signals, want 1", len(signals))
+	}
+	wantTime := time.Date(2021, time.July, 8, 9, 10, 11, 123456789, time.FixedZone("", 2*60*60))
+	if !signals[0].NextSignal.Equal(wantTime) || !signals[0].AllClear || signals[0].Meta["legacy"] != "metadata" {
+		t.Fatalf("Load() = %+v", signals[0])
+	}
+}
+
+func TestSQLiteFilePersistence(t *testing.T) {
+	dsn := filepath.Join(t.TempDir(), "nanny.sqlite")
+	store, err := storage.NewSQLiteDB(dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := storage.Signal{
+		Name:       "persisted",
+		Notifier:   "stderr",
+		NextSignal: time.Now().Add(time.Hour).Round(0),
+		Meta:       map[string]string{"restart": "restored"},
+	}
+	if err := store.Save(want); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
 	}
 
-	if this.AllClear != other.AllClear {
-		t.Errorf("saved signal is not equal to loaded signal, saved: %+v, loaded: %+v", this.AllClear, other.AllClear)
+	reopened := newStorage(t, dsn)
+	got, err := reopened.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Name != want.Name || !got[0].NextSignal.Equal(want.NextSignal) || got[0].Meta["restart"] != "restored" {
+		t.Fatalf("Load() after reopen = %+v, want %+v", got, want)
+	}
+}
+
+func TestSQLiteMalformedRows(t *testing.T) {
+	tests := []struct {
+		name       string
+		notifier   any
+		nextSignal any
+		meta       any
+	}{
+		{name: "scan", notifier: nil, nextSignal: "2026-09-22T12:34:56Z", meta: `{}`},
+		{name: "timestamp", notifier: "stderr", nextSignal: "not-a-time", meta: `{}`},
+		{name: "metadata", notifier: "stderr", nextSignal: "2026-09-22T12:34:56Z", meta: `{not-json}`},
 	}
 
-	if this.Notifier != other.Notifier {
-		t.Errorf("saved signal is not equal to loaded signal, saved: %+v, loaded: %+v", this.Notifier, other.Notifier)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dsn := "file:malformed-" + tt.name + "?mode=memory&cache=shared"
+			store := newStorage(t, dsn)
+			db, err := sql.Open("sqlite", dsn)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				if err := db.Close(); err != nil {
+					t.Errorf("Close() error = %v", err)
+				}
+			}()
+			_, err = db.Exec(
+				"INSERT INTO signal (name, notifier, next_signal, all_clear, meta) VALUES (?, ?, ?, ?, ?)",
+				tt.name, tt.notifier, tt.nextSignal, 0, tt.meta,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if _, err := store.Load(); err == nil {
+				t.Fatal("Load() error = nil, want malformed row error")
+			}
+		})
+	}
+}
+
+func TestSQLiteConstructorErrors(t *testing.T) {
+	dsn := filepath.Join(t.TempDir(), "missing", "nanny.sqlite")
+	if _, err := storage.NewSQLiteDB(dsn); err == nil {
+		t.Fatal("NewSQLiteDB() error = nil, want open error")
+	}
+}
+
+func TestSQLiteSchemaErrors(t *testing.T) {
+	dsn := filepath.Join(t.TempDir(), "invalid-schema.sqlite")
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("CREATE VIEW signal AS SELECT 1 AS value"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
 	}
 
-	if this.Meta["meta"] != other.Meta["meta"] {
-		t.Errorf("saved signal is not equal to loaded signal, saved: %+v, loaded: %+v", this.Meta, other.Meta)
+	if _, err := storage.NewSQLiteDB(dsn); err == nil {
+		t.Fatal("NewSQLiteDB() error = nil, want schema error")
 	}
 }

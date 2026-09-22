@@ -2,7 +2,6 @@ FROM docker.io/library/golang:1.27.1-alpine AS build
 
 LABEL maintainer="Philip Schmid (@PhilipSchmid)"
 
-RUN apk add --no-cache build-base
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
@@ -10,7 +9,7 @@ COPY . .
 ARG VERSION=dev
 ARG GIT_COMMIT=unknown
 ARG BUILD_DATE=unknown
-RUN CGO_ENABLED=1 go build -trimpath -tags netgo -ldflags "-s -w -extldflags=-static -X nanny/pkg/version.Version=${VERSION} -X nanny/pkg/version.GitCommit=${GIT_COMMIT} -X nanny/pkg/version.BuildDate=${BUILD_DATE}" -o /nanny .
+RUN CGO_ENABLED=0 go build -trimpath -tags netgo -ldflags "-s -w -X nanny/pkg/version.Version=${VERSION} -X nanny/pkg/version.GitCommit=${GIT_COMMIT} -X nanny/pkg/version.BuildDate=${BUILD_DATE}" -o /nanny .
 
 FROM docker.io/library/alpine:3.23
 

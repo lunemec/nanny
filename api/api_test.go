@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -106,6 +107,29 @@ func TestListEndpoints(t *testing.T) {
 		"/api/version":"Nanny version."
 	}`
 	assert.JSONEq(t, expected, got)
+}
+
+func TestHandlerRestoresPersistedSignal(t *testing.T) {
+	store, err := storage.NewSQLiteDB(filepath.Join(t.TempDir(), "nanny.sqlite"))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
+	require.NoError(t, store.Save(storage.Signal{
+		Name:       "restored program",
+		Notifier:   "dummy",
+		NextSignal: time.Now().Add(time.Hour),
+		AllClear:   true,
+		Meta:       map[string]string{"source": "restart"},
+	}))
+
+	server := Server{Notifiers: testNotifiers, Storage: store}
+	handler, err := server.Handler()
+	require.NoError(t, err)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/signals", nil))
+	assert.Equal(t, http.StatusOK, response.Code)
+	assert.Contains(t, response.Body.String(), "restored program")
+	assert.Contains(t, response.Body.String(), `"source":"restart"`)
 }
 
 // TestAPINoNotifier tests if we correctly return error when the notifier we tried
