@@ -104,9 +104,6 @@ func loadStorage(n *nanny.Nanny, notifiers notifiers, store storage.Storage) {
 		slog.Warn(msg)
 		return
 	}
-	// create callback func using our storage.
-	callbackFunc := makeCallbackFunc(store)
-
 	// Create nanny timers from persisted signals.
 	for _, signal := range signals {
 		// If NextSignal would be in the past, notify user, and delete it.
@@ -133,11 +130,9 @@ func loadStorage(n *nanny.Nanny, notifiers notifiers, store storage.Storage) {
 			NextSignal: time.Until(signal.NextSignal),
 			AllClear:   signal.AllClear,
 			Meta:       signal.Meta,
-
-			CallbackFunc: callbackFunc,
 		}
 
-		err = n.Handle(s)
+		err = n.HandleWithPersistence(s, makePersistenceFunc(store, signal.Notifier))
 		if err != nil {
 			msg := "Unable to create signal handler from previous run," +
 				" please check this program manually."
@@ -150,18 +145,6 @@ func loadStorage(n *nanny.Nanny, notifiers notifiers, store storage.Storage) {
 			"all_clear", s.AllClear,
 			"meta", s.Meta,
 			"notifier", signal.Notifier)
-	}
-}
-
-// makeCallbackFunc creates new function that can be used as nanny.Signal callback
-// while injecting storage dependency. This is used to remove signal from persistent
-// storage.
-func makeCallbackFunc(store storage.Storage) func(*nanny.Signal) {
-	return func(signal *nanny.Signal) {
-		err := store.Remove(storage.Signal{Name: signal.Name})
-		if err != nil {
-			slog.Error("Error removing signal from storage.", "err", err, "signal", signal)
-		}
 	}
 }
 
@@ -232,21 +215,8 @@ func signalHandler(n *nanny.Nanny, notifiers notifiers, store storage.Storage, w
 		}
 	}
 
-	s := constructSignal(signal, notif, store, req)
-	err = n.HandleWithPersistence(s, func(current nanny.Signal, deadline time.Time) {
-		err := store.Save(storage.Signal{
-			Name:       current.Name,
-			Notifier:   signal.Notifier,
-			NextSignal: deadline,
-			AllClear:   current.AllClear,
-			Meta:       current.Meta,
-		})
-		// This error should not be on the API but only logged. Notifications
-		// will still work.
-		if err != nil {
-			slog.Error("Error saving signal to persistent storage", "err", err)
-		}
-	})
+	s := constructSignal(signal, notif, req)
+	err = n.HandleWithPersistence(s, makePersistenceFunc(store, signal.Notifier))
 	if err != nil {
 		return fmt.Errorf("unable to handle signal: %w", err)
 	}
@@ -255,6 +225,27 @@ func signalHandler(n *nanny.Nanny, notifiers notifiers, store storage.Storage, w
 	//nolint:errcheck // the response is committed and a write failure is not recoverable here
 	w.Write([]byte(`{"status_code":200, "status":"OK"}`))
 	return nil
+}
+
+func makePersistenceFunc(store storage.Storage, notifierName string) func(nanny.Signal, time.Time) {
+	return func(current nanny.Signal, deadline time.Time) {
+		stored := storage.Signal{
+			Name:       current.Name,
+			Notifier:   notifierName,
+			NextSignal: deadline,
+			AllClear:   current.AllClear,
+			Meta:       current.Meta,
+		}
+		var err error
+		if deadline.IsZero() {
+			err = store.Remove(stored)
+		} else {
+			err = store.Save(stored)
+		}
+		if err != nil {
+			slog.Error("Error persisting signal", "err", err, "signal", current.Name)
+		}
+	}
 }
 
 func getSignalsHandler(n *nanny.Nanny, notifiers notifiers, store storage.Storage, w http.ResponseWriter, req *http.Request) error {
@@ -279,20 +270,13 @@ func getSignalsHandler(n *nanny.Nanny, notifiers notifiers, store storage.Storag
 	return nil
 }
 
-func constructSignal(jsonSignal Signal, notif notifier.Notifier, store storage.Storage, req *http.Request) nanny.Signal {
+func constructSignal(jsonSignal Signal, notif notifier.Notifier, req *http.Request) nanny.Signal {
 	s := nanny.Signal{
 		Name:       constructName(jsonSignal.Name, req),
 		Notifier:   notif,
 		NextSignal: constructDuration(jsonSignal.NextSignal),
 		AllClear:   jsonSignal.AllClear,
 		Meta:       jsonSignal.Meta,
-
-		CallbackFunc: func(s *nanny.Signal) {
-			err := store.Remove(storage.Signal{Name: s.Name})
-			if err != nil {
-				slog.Error("Error removing signal from storage.", "err", err, "signal", jsonSignal)
-			}
-		},
 	}
 	return s
 }
