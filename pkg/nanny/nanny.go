@@ -55,8 +55,11 @@ func (n *Nanny) Handle(s Signal) error {
 	return n.handleWithPersistence(s, nil)
 }
 
-// HandleWithPersistence handles a signal and runs persist before its timer is
-// armed. Calls for the same signal are serialized with expiry callbacks.
+// HandleWithPersistence handles a signal and runs persist synchronously before
+// its timer is armed. An accepted expiry calls persist with a zero deadline
+// before notification delivery. Calls for the same signal are serialized with
+// expiry callbacks. The persistence callback must not re-enter Handle for the
+// same signal.
 func (n *Nanny) HandleWithPersistence(s Signal, persist func(Signal, time.Time)) error {
 	return n.handleWithPersistence(s, persist)
 }
@@ -94,12 +97,18 @@ func (n *Nanny) handle(s validSignal, persist func(Signal, time.Time)) {
 	}
 	timer := n.timers[s.Name]
 	if timer == nil {
-		timer = &Timer{signal: s, nanny: n, generation: 1}
-		timer.lock.Lock()
+		timer = &Timer{
+			signal:     s,
+			nanny:      n,
+			end:        time.Now().Add(s.NextSignal),
+			generation: 1,
+			persist:    persist,
+		}
+		complete := timer.beginUpdate()
 		n.timers[s.Name] = timer
 		n.timersMu.Unlock()
-		timer.initializeLocked(persist)
-		timer.lock.Unlock()
+		timer.initialize()
+		complete()
 		return
 	}
 	n.timersMu.Unlock()

@@ -100,12 +100,14 @@ func (s *expiryStorage) Remove(storage.Signal) error {
 
 type blockingAllClearNotifier struct {
 	alerted         chan struct{}
+	releaseAlert    chan struct{}
 	allClearStarted chan struct{}
 	releaseAllClear chan struct{}
 }
 
 func (n *blockingAllClearNotifier) Notify(notifier.Message) error {
 	close(n.alerted)
+	<-n.releaseAlert
 	return nil
 }
 func (n *blockingAllClearNotifier) NotifyAllClear(notifier.Message) error {
@@ -286,9 +288,19 @@ func TestSignalPersistenceCompletesBeforeTimerExpiry(t *testing.T) {
 func TestSlowAllClearDoesNotBlockOtherSignals(t *testing.T) {
 	slow := &blockingAllClearNotifier{
 		alerted:         make(chan struct{}),
+		releaseAlert:    make(chan struct{}),
 		allClearStarted: make(chan struct{}),
 		releaseAllClear: make(chan struct{}),
 	}
+	release := func(channel chan struct{}) {
+		select {
+		case <-channel:
+		default:
+			close(channel)
+		}
+	}
+	defer release(slow.releaseAlert)
+	defer release(slow.releaseAllClear)
 	handler := router(&nanny.Nanny{}, notifiers{"slow": slow, "dummy": &DummyNotifier{}}, &testStorage{})
 	send := func(name, notifierName, nextSignal string, allClear bool) <-chan struct{} {
 		done := make(chan struct{})
@@ -308,15 +320,45 @@ func TestSlowAllClearDoesNotBlockOtherSignals(t *testing.T) {
 	<-send("slow", "slow", "10ms", true)
 	<-slow.alerted
 	slowHeartbeat := send("slow", "slow", "1h", true)
-	<-slow.allClearStarted
+	select {
+	case <-slowHeartbeat:
+	case <-time.After(time.Second):
+		t.Fatal("blocked alert delayed the heartbeat response")
+	}
+	select {
+	case <-slow.allClearStarted:
+		t.Fatal("all-clear overtook the blocked alert")
+	case <-time.After(20 * time.Millisecond):
+	}
+	release(slow.releaseAlert)
+	select {
+	case <-slow.allClearStarted:
+	case <-time.After(time.Second):
+		t.Fatal("all-clear did not follow the alert")
+	}
+
+	sameHeartbeat := send("slow", "slow", "1h", true)
+	select {
+	case <-sameHeartbeat:
+	case <-time.After(time.Second):
+		t.Fatal("blocked all-clear delayed the heartbeat response")
+	}
 	otherHeartbeat := send("other", "dummy", "1h", false)
 	select {
 	case <-otherHeartbeat:
 	case <-time.After(time.Second):
 		t.Fatal("slow all-clear blocked an unrelated signal")
 	}
-	close(slow.releaseAllClear)
-	<-slowHeartbeat
+	release(slow.releaseAllClear)
+}
+
+func TestConstructSignalReservesCallbackForConsumers(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/signal", nil)
+	req.Header.Set("X-Dont-Modify-Name", "true")
+	signal := constructSignal(Signal{Name: "program", NextSignal: "1h"}, &DummyNotifier{}, req)
+	if signal.CallbackFunc != nil {
+		t.Fatal("constructSignal() set a persistence callback on the public consumer callback")
+	}
 }
 
 // TestAPINoNotifier tests if we correctly return error when the notifier we tried
