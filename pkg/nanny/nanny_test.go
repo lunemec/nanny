@@ -16,6 +16,7 @@ import (
 // when `Notify()` method is called.
 type DummyNotifier struct {
 	notifyMsg notifier.Message
+	notifyCnt int
 	lock      sync.Mutex
 }
 
@@ -23,6 +24,7 @@ type DummyNotifier struct {
 func (d *DummyNotifier) Notify(msg notifier.Message) error {
 	d.lock.Lock()
 	d.notifyMsg = msg
+	d.notifyCnt++
 	d.lock.Unlock()
 	return nil
 }
@@ -45,6 +47,12 @@ func (d *DummyNotifier) NotifyMsg() notifier.Message {
 	d.lock.Lock()
 	defer d.lock.Unlock()
 	return d.notifyMsg
+}
+
+func (d *DummyNotifier) NotifyCount() int {
+	d.lock.Lock()
+	defer d.lock.Unlock()
+	return d.notifyCnt
 }
 
 // DummyNotifierWithError always returns error.
@@ -256,7 +264,7 @@ func TestConcurrent(t *testing.T) {
 
 	// Spawn 10 goroutines calling nanny.Handle concurrently. This simulates API
 	// being called by multiple callers.
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		wg.Add(1)
 		go func(num int) {
 			defer wg.Done()
@@ -289,6 +297,64 @@ func TestConcurrent(t *testing.T) {
 	wg.Wait()
 }
 
+func TestConcurrentSameNameCreatesOneTimer(t *testing.T) {
+	n := nanny.Nanny{}
+	dummy := &DummyNotifier{}
+	signal := nanny.Signal{
+		Name:       "same program",
+		Notifier:   dummy,
+		NextSignal: 50 * time.Millisecond,
+	}
+
+	var wg sync.WaitGroup
+	for range 100 {
+		wg.Go(func() {
+			if err := n.Handle(signal); err != nil {
+				t.Errorf("Handle() error = %v", err)
+			}
+		})
+	}
+	wg.Wait()
+
+	if got := len(n.GetTimers()); got != 1 {
+		t.Fatalf("GetTimers() returned %d timers, want 1", got)
+	}
+	time.Sleep(100 * time.Millisecond)
+	if got := dummy.NotifyCount(); got != 1 {
+		t.Fatalf("Notify() called %d times, want 1", got)
+	}
+}
+
+func TestConcurrentDifferentNamesAndSnapshots(t *testing.T) {
+	n := nanny.Nanny{}
+	dummy := &DummyNotifier{}
+
+	var wg sync.WaitGroup
+	for i := range 50 {
+		wg.Go(func() {
+			if err := n.Handle(nanny.Signal{
+				Name:       fmt.Sprintf("program %d", i),
+				Notifier:   dummy,
+				NextSignal: time.Hour,
+			}); err != nil {
+				t.Errorf("Handle() error = %v", err)
+			}
+		})
+		wg.Go(func() {
+			for _, timer := range n.GetTimers() {
+				if _, err := json.Marshal(timer); err != nil {
+					t.Errorf("MarshalJSON() error = %v", err)
+				}
+			}
+		})
+	}
+	wg.Wait()
+
+	if got := len(n.GetTimers()); got != 50 {
+		t.Fatalf("GetTimers() returned %d timers, want 50", got)
+	}
+}
+
 func TestMultipleTimerResets(t *testing.T) {
 	n := nanny.Nanny{Name: "test nanny"}
 	dummy := &DummyNotifier{}
@@ -305,7 +371,7 @@ func TestMultipleTimerResets(t *testing.T) {
 		}
 	}
 	// This would cause data race on timer.Reset.
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		go runHandle()
 	}
 

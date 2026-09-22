@@ -247,7 +247,7 @@ func signalHandler(n *nanny.Nanny, notifiers notifiers, store storage.Storage, w
 	}
 	// When everything is OK, we should return JSON with "status_code": 200, and
 	// message "status": "OK".
-	// nolint: errcheck
+	//nolint:errcheck // the response is committed and a write failure is not recoverable here
 	w.Write([]byte(`{"status_code":200, "status":"OK"}`))
 	return nil
 }

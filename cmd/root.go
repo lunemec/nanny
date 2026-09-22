@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/signal"
@@ -149,6 +150,10 @@ func nannyCheck(nanny string) {
 		if resp.StatusCode != 200 {
 			log.Error("Pair nanny returned error", "status_code", resp.StatusCode)
 		}
+		_, _ = io.Copy(io.Discard, resp.Body)
+		if err := resp.Body.Close(); err != nil {
+			log.Error("Unable to close pair nanny response", "err", err)
+		}
 
 		// We have to sleep for less than 1s, because there will be some network
 		// latency added to the request, even on localhost.
@@ -196,7 +201,7 @@ func runAPI() {
 
 	log.Info("Nanny listening", "addr", server.Addr)
 	err = server.ListenAndServe()
-	if err != http.ErrServerClosed {
+	if !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal("Unable to start API server", "err", err)
 	}
 

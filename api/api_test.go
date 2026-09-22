@@ -86,11 +86,6 @@ func serverSetup(t *testing.T) *httptest.Server {
 
 func readResponseBody(t *testing.T, resp *http.Response) []byte {
 	t.Helper()
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			t.Errorf("close response body: %v", err)
-		}
-	}()
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	return body
@@ -123,6 +118,7 @@ func TestAPINoNotifier(t *testing.T) {
 	resp, err := http.Post(ts.URL+"/api/v1/signal", "application/json", strings.NewReader(payload))
 	require.NoError(t, err)
 	require.NotNil(t, resp)
+	defer func() { require.NoError(t, resp.Body.Close()) }()
 
 	body := readResponseBody(t, resp)
 
@@ -141,6 +137,7 @@ func TestAPISignal(t *testing.T) {
 	resp, err := http.Post(ts.URL+"/api/v1/signal", "application/json", strings.NewReader(payload))
 	require.NoError(t, err)
 	require.NotNil(t, resp)
+	defer func() { require.NoError(t, resp.Body.Close()) }()
 
 	body := readResponseBody(t, resp)
 
@@ -163,6 +160,7 @@ func TestAPISignalAcceptsInt(t *testing.T) {
 	resp, err := http.Post(ts.URL+"/api/v1/signal", "application/json", strings.NewReader(payload))
 	require.NoError(t, err)
 	require.NotNil(t, resp)
+	defer func() { require.NoError(t, resp.Body.Close()) }()
 
 	body := readResponseBody(t, resp)
 

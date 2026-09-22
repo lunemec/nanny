@@ -23,6 +23,9 @@ type Timer struct {
 
 // MarshalJSON marshals a nanny.Timer into JSON. Fields name, notifier, next_signal, all_clear and meta are exported
 func (nt *Timer) MarshalJSON() ([]byte, error) {
+	nt.lock.Lock()
+	defer nt.lock.Unlock()
+
 	return json.Marshal(&struct {
 		Name       string            `json:"name"`
 		Notifier   string            `json:"notifier"`
@@ -36,6 +39,12 @@ func (nt *Timer) MarshalJSON() ([]byte, error) {
 		AllClear:   nt.signal.AllClear,
 		Meta:       nt.signal.Meta,
 	})
+}
+
+func (nt *Timer) expired(now time.Time) bool {
+	nt.lock.Lock()
+	defer nt.lock.Unlock()
+	return now.After(nt.end)
 }
 
 func newTimer(s validSignal, nanny *Nanny) *Timer {
