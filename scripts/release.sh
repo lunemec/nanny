@@ -24,7 +24,8 @@ if [ -z "$tag" ]; then
 fi
 
 ./scripts/release-preflight.sh --prepare "$tag"
-make release-verify
+printf 'Verifying release candidate %s before creating its tag\n' "$tag"
+make release-verify VERSION="$tag"
 ./scripts/release-preflight.sh --prepare "$tag"
 
 if ! git show-ref --verify --quiet "refs/tags/$tag"; then

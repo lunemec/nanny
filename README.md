@@ -278,10 +278,10 @@ export GITHUB_TOKEN=...
 make release
 ```
 
-For a non-interactive run, use `make release RELEASE_TAG=0.5.0`. The version is
-used only to create the Git tag; GoReleaser reads the release version from that
-tag. `make release` checks clean `master`, then runs module
-consistency, preflight tests, build, vet, lint, race-enabled shuffled tests,
+For a non-interactive run, use `make release RELEASE_TAG=0.5.0`. The
+verification binary uses that version before the tag exists; GoReleaser reads
+the published version from the tag. `make release` checks clean `master`, then
+runs module consistency, preflight tests, build, vet, lint, race-enabled shuffled tests,
 `govulncheck`, both Docker builds, GoReleaser validation, and a non-publishing
 snapshot. Once every check passes, it creates and pushes the tag, checks it
 again, and has GoReleaser create the GitHub release, Linux amd64 archive,
