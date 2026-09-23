@@ -257,7 +257,7 @@ make snapshot                         Build release artifacts without publishing
 make release-check                    Validate the GoReleaser configuration.
 make release-preflight                Verify the release tag matches pushed master.
 make release-verify                   Run every non-publishing release gate.
-make release                          Verify and publish from a clean, tagged checkout.
+make release                          Verify, tag, and publish from clean master.
   Dev
 make run                              Run Nanny in dev mode, all logging and race detector ON.
 make test                             Run tests.
@@ -267,10 +267,9 @@ make lint                             Run the pinned golangci-lint version.
 
 ## Releasing
 
-Releases are manual. From a clean checkout, create and push an unprefixed
-version tag at `HEAD` (for example `0.5.0`). The tag, `HEAD`, and
-`origin/master` must all resolve to the same commit. Log in to both registries
-once and export a GitHub token, then each release is one command:
+Releases are manual. From a clean `master` matching `origin/master`, log in to
+both registries once and export a GitHub token. Run one command, then enter an
+unprefixed version such as `0.5.0` when prompted:
 
 ```bash
 docker login ghcr.io
@@ -279,12 +278,16 @@ export GITHUB_TOKEN=...
 make release
 ```
 
-`make release` checks the pushed tag and clean `master`, then runs module
+For a non-interactive run, use `make release RELEASE_TAG=0.5.0`. The version is
+used only to create the Git tag; GoReleaser reads the release version from that
+tag. `make release` checks clean `master`, then runs module
 consistency, preflight tests, build, vet, lint, race-enabled shuffled tests,
 `govulncheck`, both Docker builds, GoReleaser validation, and a non-publishing
-snapshot. It repeats the remote preflight immediately before GoReleaser creates
-the GitHub release, Linux amd64 archive, Debian package, SHA-256 checksums, and
-matching GHCR and Docker Hub images.
+snapshot. Once every check passes, it creates and pushes the tag, checks it
+again, and has GoReleaser create the GitHub release, Linux amd64 archive,
+Debian package, SHA-256 checksums, and matching GHCR and Docker Hub images.
+If publishing fails after the tag is pushed, rerun `make release` from the same
+commit to reuse it.
 
 ## FAQ
 > Why write such a tool?
