@@ -77,14 +77,12 @@ Nanny requires Go >= 1.27 to build.
 
 ### Containers
 
-Starting with `0.5.0`, Nanny is published to GitHub Container Registry and
-Docker Hub. Both names refer to the same image:
+Starting with `0.5.0`, Nanny is published to Docker Hub:
 ```bash
 docker run -d -p 8080:8080 \
   -e "NANNY_NAME=MyNanny" \
   -v nanny-data:/var/lib/nanny \
-  ghcr.io/lunemec/nanny:latest
-# Equivalent image: docker.io/lunemec/nanny:latest
+  docker.io/lunemec/nanny:latest
 ```
 
 **Note:**
@@ -268,11 +266,10 @@ make lint                             Run the pinned golangci-lint version.
 ## Releasing
 
 Releases are manual. From a clean `master` matching `origin/master`, log in to
-both registries once and export a GitHub token. Run one command, then enter an
+Docker Hub once and export a GitHub token. Run one command, then enter an
 unprefixed version such as `0.5.0` when prompted:
 
 ```bash
-docker login ghcr.io
 docker login docker.io
 export GITHUB_TOKEN=...
 make release
@@ -285,7 +282,7 @@ runs module consistency, preflight tests, build, vet, lint, race-enabled shuffle
 `govulncheck`, both Docker builds, GoReleaser validation, and a non-publishing
 snapshot. Once every check passes, it creates and pushes the tag, checks it
 again, and has GoReleaser create the GitHub release, Linux amd64 archive,
-Debian package, SHA-256 checksums, and matching GHCR and Docker Hub images.
+Debian package, SHA-256 checksums, and a Docker Hub image.
 If publishing fails after the tag is pushed, rerun `make release` from the same
 commit to reuse it.
 
