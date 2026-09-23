@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   service:
-    image: ghcr.io/lunemec/nanny:latest
+    image: docker.io/lunemec/nanny:latest
     restart: always
     ports:
       - 8080:8080

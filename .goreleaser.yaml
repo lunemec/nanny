@@ -84,7 +84,6 @@ dockers_v2:
       - nanny
     dockerfile: Dockerfile.release
     images:
-      - ghcr.io/lunemec/nanny
       - docker.io/lunemec/nanny
     tags:
       - "{{ .Version }}"
