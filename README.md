@@ -20,6 +20,12 @@ Nanny can notify you via these channels (for now):
 * generic webhook (HTTP POST callback)
 * xmpp (jabber)
 
+## Why Nanny?
+
+[Prometheus can already alert when a batch job stops succeeding](https://prometheus.io/docs/practices/alerting/), and [Grafana Cloud accepts HTTP heartbeats](https://grafana.com/docs/grafana-cloud/observe-and-act/respond-to-incidents/guides/best-practices/integrations/) too. If you already use them, you probably do not need Nanny.
+
+Nanny is useful when you just want a small, self-hosted service that accepts one HTTP request from a cron job, backup, or anything else that should run regularly. Sending a request is often easier than exposing and maintaining metrics, and every signal can say when the next one is due.
+
 ## Example
 Run API server:
 ```bash
