@@ -2,6 +2,7 @@
 SHELL := /bin/bash
 export TESTS
 export GITHUB_TOKEN
+export RELEASE_TAG
 header = "  \e[1;34m%-30s\e[m \n"
 row = "\e[1mmake %-32s\e[m %-50s \n"
 VERSION ?= $(shell git describe --tags --always --dirty)
@@ -18,7 +19,7 @@ all:
 	@printf $(row) "release-check" "Validate the GoReleaser configuration."
 	@printf $(row) "release-preflight" "Verify the release tag matches pushed master."
 	@printf $(row) "release-verify" "Run every non-publishing release gate."
-	@printf $(row) "release" "Verify and publish from a clean, tagged checkout."
+	@printf $(row) "release" "Verify, tag, and publish from clean master."
 	@printf $(header) "Dev"
 	@printf $(row) "run" "Run Nanny in dev mode, all logging and race detector ON."
 	@printf $(row) "test" "Run tests."
@@ -91,7 +92,4 @@ release-verify:
 
 release:
 	@test -n "$$GITHUB_TOKEN" || (echo "GITHUB_TOKEN is required"; exit 1)
-	@$(MAKE) release-preflight
-	@$(MAKE) release-verify
-	@$(MAKE) release-preflight
-	$(GORELEASER) release --clean
+	@./scripts/release.sh $(GORELEASER)
