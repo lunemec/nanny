@@ -106,7 +106,8 @@ create_repo release_flow
 	cd "$work_dir"
 	mkdir scripts
 	cp "$source_root/scripts/release-preflight.sh" "$source_root/scripts/release.sh" scripts/
-	printf 'release-verify:\n\t@false\n' > Makefile
+	# shellcheck disable=SC2016 # The Makefile must receive the literal $(VERSION).
+	printf 'release-verify:\n\t@test "$(VERSION)" = "0.5.0"\n\t@false\n' > Makefile
 	git add Makefile scripts
 	git commit --quiet -m 'add release flow'
 	git push --quiet origin master
@@ -118,7 +119,8 @@ create_repo release_flow
 		printf 'failed verification created a tag\n' >&2
 		exit 1
 	fi
-	printf 'release-verify:\n\t@true\n' > Makefile
+	# shellcheck disable=SC2016 # The Makefile must receive the literal $(VERSION).
+	printf 'release-verify:\n\t@test "$(VERSION)" = "0.5.0"\n' > Makefile
 	git add Makefile
 	git commit --quiet -m 'pass release gates'
 	git push --quiet origin master
