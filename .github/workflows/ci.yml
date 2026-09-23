@@ -29,10 +29,7 @@ jobs:
           cache: true
 
       - name: Check module files
-        run: |
-          go mod tidy
-          git diff --exit-code -- go.mod go.sum
-          go mod verify
+        run: make module-check
 
       - name: Test release preflight
         run: make release-preflight-test
@@ -41,7 +38,7 @@ jobs:
         run: make build
 
       - name: Vet
-        run: go vet ./...
+        run: make vet
 
       - name: Lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
@@ -49,26 +46,16 @@ jobs:
           version: v2.13.2
 
       - name: Test
-        run: go test -race -shuffle=on ./...
+        run: make test
 
       - name: Check vulnerabilities
-        run: go tool govulncheck ./...
+        run: make vulncheck
 
-      - name: Build container
-        run: docker build --tag nanny:ci .
+      - name: Build and test container
+        run: make docker-check
 
-      - name: Test container runtime layout
-        run: |
-          docker run --rm --entrypoint /bin/sh nanny:ci -ec '
-            test "$(id -u)" = 1000
-            test "$(id -g)" = 1000
-            test "$PWD" = /var/lib/nanny
-            test -x /usr/bin/nanny
-            test -w /var/lib/nanny
-            grep -q '\''addr="0.0.0.0:8080"'\'' /etc/nanny/nanny.toml
-            test -z "$NANNY_ADDR"
-            test -z "$NANNY_STORAGE_DSN"
-          '
+      - name: Validate release configuration
+        run: make release-check
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
